@@ -1121,6 +1121,17 @@ bool json_get_string(char **store, const json_t *val, const char *res)
 	return _json_get_string(store, json_object_get(val, res), res);
 }
 
+/* Used when there must be a valid string */
+static void json_get_configstring(char **store, const json_t *val, const char *res)
+{
+	bool ret = _json_get_string(store, json_object_get(val, res), res);
+
+	if (!ret) {
+		LOGEMERG("Invalid config string or missing object for %s", res);
+		exit(1);
+	}
+}
+
 bool json_get_int64(int64_t *store, const json_t *val, const char *res)
 {
 	json_t *entry = json_object_get(val, res);
@@ -1253,9 +1264,9 @@ static void parse_btcds(ckpool_t *ckp, const json_t *arr_val, const int arr_size
 	ckp->btcdnotify = ckzalloc(sizeof(bool *) * arr_size);
 	for (i = 0; i < arr_size; i++) {
 		val = json_array_get(arr_val, i);
-		json_get_string(&ckp->btcdurl[i], val, "url");
-		json_get_string(&ckp->btcdauth[i], val, "auth");
-		json_get_string(&ckp->btcdpass[i], val, "pass");
+		json_get_configstring(&ckp->btcdurl[i], val, "url");
+		json_get_configstring(&ckp->btcdauth[i], val, "auth");
+		json_get_configstring(&ckp->btcdpass[i], val, "pass");
 		json_get_bool(&ckp->btcdnotify[i], val, "notify");
 	}
 }
@@ -1271,9 +1282,10 @@ static void parse_proxies(ckpool_t *ckp, const json_t *arr_val, const int arr_si
 	ckp->proxypass = ckzalloc(sizeof(char *) * arr_size);
 	for (i = 0; i < arr_size; i++) {
 		val = json_array_get(arr_val, i);
-		json_get_string(&ckp->proxyurl[i], val, "url");
-		json_get_string(&ckp->proxyauth[i], val, "auth");
-		json_get_string(&ckp->proxypass[i], val, "pass");
+		json_get_configstring(&ckp->proxyurl[i], val, "url");
+		json_get_configstring(&ckp->proxyauth[i], val, "auth");
+		if (!json_get_string(&ckp->proxypass[i], val, "pass"))
+			ckp->proxypass[i] = strdup("");
 	}
 }
 
