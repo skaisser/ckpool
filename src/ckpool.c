@@ -1688,9 +1688,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (!ckp.btcsolo)
-		LOGWARNING("WARNING: Starting solo code in non-solo mode!");
-
 	if (!ckp.name) {
 		if (ckp.node)
 			ckp.name = "cknode";
