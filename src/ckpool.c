@@ -1755,7 +1755,7 @@ int main(int argc, char **argv)
 	ckp.tndonaddress = "tb1q5fyv7tue73y4zxezh2c685qpwx0cfngfxlrgxh";
 	ckp.rtdonaddress = "bcrt1qlk935ze2fsu86zjp395uvtegztrkaezawxx0wf";
 
-	if (!ckp.btcaddress && !ckp.btcsolo)
+	if (!ckp.btcaddress && !ckp.btcsolo && !ckp.proxy)
 		quit(0, "Non solo mining must have a btcaddress in config, aborting!");
 	if (!ckp.blockpoll)
 		ckp.blockpoll = 100;
