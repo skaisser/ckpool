@@ -6166,6 +6166,11 @@ no_stale:
 out_submit:
 	if (sdiff >= wdiff)
 		submit = true;
+	if (unlikely(sdiff >= sdata->current_workbase->network_diff)) {
+		/* Make sure we always submit any possible block solve */
+		LOGWARNING("Submitting possible block solve share diff %lf !", sdiff);
+		submit = true;
+	}
 out_put:
 	put_workbase(sdata, wb);
 out_nowb:
