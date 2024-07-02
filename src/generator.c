@@ -26,7 +26,7 @@
 struct notify_instance {
 	/* Hash table data */
 	UT_hash_handle hh;
-	int id;
+	int64_t id64;
 
 	char prevhash[68];
 	json_t *jobid;
@@ -49,7 +49,7 @@ typedef struct proxy_instance proxy_instance_t;
 
 struct share_msg {
 	UT_hash_handle hh;
-	int64_t id; // Our own id for submitting upstream
+	int64_t id64; // Our own id for submitting upstream
 
 	int64_t client_id;
 	time_t submit_time;
@@ -185,7 +185,7 @@ struct generator_data {
 	int proxies_generated;
 	int subproxies_generated;
 
-	int proxy_notify_id;	// Globally increasing notify id
+	int64_t proxy_notify_id;	// Globally increasing notify id
 	pthread_t pth_uprecv;	// User proxy receive thread
 	pthread_t pth_psend;	// Combined proxy send thread
 
@@ -1035,8 +1035,8 @@ static bool parse_notify(ckpool_t *ckp, proxy_instance_t *proxi, json_t *val)
 
 	/* Add the notify instance to the parent proxy list, not the subproxy */
 	mutex_lock(&gdata->notify_lock);
-	ni->id = gdata->proxy_notify_id++;
-	HASH_ADD_INT(gdata->notify_instances, id, ni);
+	ni->id64 = gdata->proxy_notify_id++;
+	HASH_ADD_I64(gdata->notify_instances, id64, ni);
 	mutex_unlock(&gdata->notify_lock);
 
 	send_notify(ckp, proxi, ni);
@@ -1332,7 +1332,7 @@ static void send_notify(ckpool_t *ckp, proxy_instance_t *proxi, notify_instance_
 	/* Use our own jobid instead of the server's one for easy lookup */
 	JSON_CPACK(json_msg, "{sIsisisssisssssosssssssb}",
 			     "proxy", proxy->id, "subproxy", proxi->subid,
-			     "jobid", ni->id, "prevhash", ni->prevhash, "coinb1len", ni->coinb1len,
+			     "jobid", ni->id64, "prevhash", ni->prevhash, "coinb1len", ni->coinb1len,
 			     "coinbase1", ni->coinbase1, "coinbase2", ni->coinbase2,
 			     "merklehash", merkle_arr, "bbversion", ni->bbversion,
 			     "nbit", ni->nbit, "ntime", ni->ntime,
@@ -1621,8 +1621,8 @@ static int add_share(gdata_t *gdata, const int64_t client_id, const double diff)
 
 	/* Add new share entry to the share hashtable. Age old shares */
 	mutex_lock(&gdata->share_lock);
-	ret = share->id = gdata->share_id++;
-	HASH_ADD_I64(gdata->shares, id, share);
+	ret = share->id64 = gdata->share_id++;
+	HASH_ADD_I64(gdata->shares, id64, share);
 	HASH_ITER(hh, gdata->shares, share, tmpshare) {
 		if (share->submit_time < now - 120) {
 			HASH_DEL(gdata->shares, share);
@@ -2913,21 +2913,21 @@ out:
 static void send_stats(gdata_t *gdata, const int sockd)
 {
 	json_t *val = json_object(), *subval;
-	int total_objects, objects, generated;
+	int total_objects, objects;
+	int64_t generated, memsize;
 	proxy_instance_t *proxy;
 	stratum_msg_t *msg;
-	int64_t memsize;
 
 	mutex_lock(&gdata->lock);
 	objects = HASH_COUNT(gdata->proxies);
 	memsize = SAFE_HASH_OVERHEAD(gdata->proxies) + sizeof(proxy_instance_t) * objects;
 	generated = gdata->proxies_generated;
-	JSON_CPACK(subval, "{si,si,si}", "count", objects, "memory", memsize, "generated", generated);
+	JSON_CPACK(subval, "{si,sI,sI}", "count", objects, "memory", memsize, "generated", generated);
 	json_set_object(val, "proxies", subval);
 
 	DL_COUNT(gdata->dead_proxies, proxy, objects);
 	memsize = sizeof(proxy_instance_t) * objects;
-	JSON_CPACK(subval, "{si,si}", "count", objects, "memory", memsize);
+	JSON_CPACK(subval, "{si,sI}", "count", objects, "memory", memsize);
 	json_set_object(val, "dead_proxies", subval);
 
 	total_objects = memsize = 0;
@@ -2940,7 +2940,7 @@ static void send_stats(gdata_t *gdata, const int sockd)
 	generated = gdata->subproxies_generated;
 	mutex_unlock(&gdata->lock);
 
-	JSON_CPACK(subval, "{si,si,si}", "count", total_objects, "memory", memsize, "generated", generated);
+	JSON_CPACK(subval, "{si,sI,sI}", "count", total_objects, "memory", memsize, "generated", generated);
 	json_set_object(val, "subproxies", subval);
 
 	mutex_lock(&gdata->notify_lock);
@@ -2949,7 +2949,7 @@ static void send_stats(gdata_t *gdata, const int sockd)
 	generated = gdata->proxy_notify_id;
 	mutex_unlock(&gdata->notify_lock);
 
-	JSON_CPACK(subval, "{si,si,si}", "count", objects, "memory", memsize, "generated", generated);
+	JSON_CPACK(subval, "{si,sI,sI}", "count", objects, "memory", memsize, "generated", generated);
 	json_set_object(val, "notifies", subval);
 
 	mutex_lock(&gdata->share_lock);
@@ -2958,7 +2958,7 @@ static void send_stats(gdata_t *gdata, const int sockd)
 	generated = gdata->share_id;
 	mutex_unlock(&gdata->share_lock);
 
-	JSON_CPACK(subval, "{si,si,si}", "count", objects, "memory", memsize, "generated", generated);
+	JSON_CPACK(subval, "{si,sI,sI}", "count", objects, "memory", memsize, "generated", generated);
 	json_set_object(val, "shares", subval);
 
 	mutex_lock(&gdata->psend_lock);
@@ -2967,7 +2967,7 @@ static void send_stats(gdata_t *gdata, const int sockd)
 	mutex_unlock(&gdata->psend_lock);
 
 	memsize = sizeof(stratum_msg_t) * objects;
-	JSON_CPACK(subval, "{si,si,si}", "count", objects, "memory", memsize, "generated", generated);
+	JSON_CPACK(subval, "{si,sI,sI}", "count", objects, "memory", memsize, "generated", generated);
 	json_set_object(val, "psends", subval);
 
 	send_api_response(val, sockd);
