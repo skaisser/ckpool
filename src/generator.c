@@ -49,7 +49,7 @@ typedef struct proxy_instance proxy_instance_t;
 
 struct share_msg {
 	UT_hash_handle hh;
-	int id; // Our own id for submitting upstream
+	int64_t id; // Our own id for submitting upstream
 
 	int64_t client_id;
 	time_t submit_time;
