@@ -1624,8 +1624,10 @@ static int add_share(gdata_t *gdata, const int64_t client_id, const double diff)
 	ret = share->id = gdata->share_id++;
 	HASH_ADD_I64(gdata->shares, id, share);
 	HASH_ITER(hh, gdata->shares, share, tmpshare) {
-		if (share->submit_time < now - 120)
+		if (share->submit_time < now - 120) {
 			HASH_DEL(gdata->shares, share);
+			free(share);
+		}
 	}
 	mutex_unlock(&gdata->share_lock);
 
