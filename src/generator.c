@@ -2272,6 +2272,7 @@ static void *passthrough_recv(void *arg)
 
 	rename_proc("passrecv");
 
+	proxi->parent = proxi;
 	if (proxy_alive(ckp, proxi, cs, false))
 		LOGWARNING("Passthrough proxy %d:%s connection established", proxi->id, proxi->url);
 	alive = proxi->alive;
