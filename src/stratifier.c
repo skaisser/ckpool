@@ -5848,8 +5848,10 @@ static double submission_diff(sdata_t *sdata, const stratum_instance_t *client, 
 	uchar *coinb2bin;
 	double ret;
 
-	/* Leave enough room for 25 byte generation address + length counter */
-	coinbase = alloca(wb->coinb1len + wb->enonce1constlen + wb->enonce1varlen + wb->enonce2varlen + wb->coinb2len + 26 + wb->coinb3len);
+	/* Leave ample enough room for donation generation address (~25) + length counter + user generation
+	 * wb->coinb1len + wb->enonce1constlen + wb->enonce1varlen + wb->enonce2varlen + wb->coinb2len + 25 + cb2len */
+
+	coinbase = alloca(1024);
 	memcpy(coinbase, wb->coinb1bin, wb->coinb1len);
 	cblen = wb->coinb1len;
 	memcpy(coinbase + cblen, &client->enonce1bin, wb->enonce1constlen + wb->enonce1varlen);
