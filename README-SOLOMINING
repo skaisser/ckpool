@@ -4,15 +4,30 @@ Local solo mining.
 
 QUICK START INSTRUCTIONS (build instructions not included.)
 
-Edit bitcoin.conf, enabling RPC (remote procedure calls) with a username and
-password. The following would allow ckpool to talk to a bitcoin daemon running
+Get a password from bitcoin core for the RPC (remote procedure calls) to allow
+the pool to talk to it. You will need bitcoin core source code.
+
+Within the bitcoin source code directory type the following command:
+share/rpcauth/rpcauth.py ckpool
+
+This will give you a message such as:
+
+String to be appended to bitcoin.conf:
+rpcauth=ckpool:c6f55b4a74b8fcbca4e8b2be22d7d53b$e2ca5e642d7ef4f43ab2524964dc6b3625ccfde09a97866c5b97c40622192149
+Your password:
+sI7jIjC61U9ZYTT29GnBpm0Rg1qQV9w_TXOfBF1vOM8
+
+
+Edit bitcoin.conf, enabling RPC (remote procedure calls) and add the rpcauth
+line above. The following would allow ckpool to talk to a bitcoin daemon running
 on the same hardware:
 
 server=1
-rpcuser=username
-rpcpassword=password
+rpcauth=ckpool:c6f55b4a74b8fcbca4e8b2be22d7d53b$e2ca5e642d7ef4f43ab2524964dc6b3625ccfde09a97866c5b97c40622192149
 rpcallowip=127.0.0.1
 rpcbind=127.0.0.1
+
+Make sure to use the line you got when running the rpcauth command.
 
 
 Restart the bitcoin daemon with zmq messaging enabled by adding the following
@@ -30,14 +45,14 @@ notifier included by adding the following command
 
 
 Create or modify a ckpool configuration file (such as ckpool.conf), including
-the minimum necessary entries.
+the minimum necessary entries. Make sure to use the password you got in step 1.
 
 {
 "btcd" :  [
         {
         "url" : "127.0.0.1:8332",
-        "auth" : "username",
-        "pass" : "password",
+        "auth" : "ckpool",
+        "pass" : "sI7jIjC61U9ZYTT29GnBpm0Rg1qQV9w_TXOfBF1vOM8",
         "notify" : true
         }
 ]
@@ -116,6 +131,8 @@ follows:
 	"192.168.1.100:3334"
 ],
 
+In addition, if you specify a port above 4000, it will become a "high diff"
+port that sets the minimum difficulty to 1 million.
 
 You can specify a different configuration file as follows:
 
