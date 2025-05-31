@@ -47,7 +47,8 @@ AM_CONDITIONAL([HAVE_YASM], [test x$YASM = xyes])
 rorx=
 avx1=
 sse4=
-if test x$YASM = xyes; then
+sha2=
+if test $host_cpu = 'x86_64' && test x$YASM = xyes; then
 	rorx=`cat /proc/cpuinfo | grep -o -m 1 avx2`
 	if [test x$rorx != xavx2]; then
 		avx1=`cat /proc/cpuinfo | grep -o -m 1 avx`
@@ -56,9 +57,14 @@ if test x$YASM = xyes; then
 		fi
 	fi
 fi
+if test $host_cpu = 'aarch64'; then
+	CFLAGS="$CFLAGS -march=armv8-a+crypto"
+	sha2=`cat /proc/cpuinfo | grep -o -m 1 sha2`
+fi
 AM_CONDITIONAL([HAVE_AVX2], [test x$rorx = xavx2])
 AM_CONDITIONAL([HAVE_AVX1], [test x$avx1 = xavx])
 AM_CONDITIONAL([HAVE_SSE4], [test x$sse4 = xsse4_1])
+AM_CONDITIONAL([HAVE_ARM_SHA2], [test x$sha2 = xsha2])
 if test x$rorx = xavx2; then
 	AC_DEFINE([USE_AVX2], [1], [Use avx2 assembly instructions for sha256])
 fi
@@ -68,6 +74,10 @@ fi
 if test x$sse4 = xsse4_1; then
 	AC_DEFINE([USE_SSE4], [1], [Use sse4 assembly instructions for sha256])
 fi
+if test x$sha2 = xsha2; then
+	AC_DEFINE([USE_ARM_SHA2], [1], [Use ARMv8 instructions for sha256])
+fi
+
 
 AC_CONFIG_SUBDIRS([src/jansson-2.14])
 JANSSON_LIBS="jansson-2.14/src/.libs/libjansson.a"
@@ -79,7 +89,8 @@ AC_SEARCH_LIBS(exp, m, , echo "Error: Required library math not found." && exit 
 AC_SEARCH_LIBS(pthread_mutex_trylock, pthread, , echo "Error: Required library pthreads not found." && exit 1)
 AC_SEARCH_LIBS(zmq_socket, zmq, ZMQ=yes, ZMQ=no)
 
-AC_CONFIG_FILES([Makefile src/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile test/Makefile])
+
 AC_OUTPUT
 
 LDFLAGS="${LDFLAGS} -Wl,--as-needed"
