@@ -40,4 +40,8 @@ ltmain.sh
 
 libtool
 
-
+test-driver
+test/sha256
+test/sha256.log
+test/sha256.trs
+test/test-suite.log
