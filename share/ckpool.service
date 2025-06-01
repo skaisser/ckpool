@@ -1,7 +1,7 @@
-# This is an exmaple systemd unit.  It should be copied to:
+# This is an example systemd unit.  It should be copied to:
 # /etc/systemd/system/ckpool.service
 #
-# If you use the PrivateTmp=yes then you use must use
+# If you use the PrivateTmp=yes then you must use the
 # -s option for ckpool to specify where to write the pid file to.
 #
 

@@ -1,0 +1,402 @@
+[2025-06-01 02:31:23.936] Setting maxclients to 921 due to max open file limit of 1024
+[2025-06-01 02:31:23.937] ckpool generator starting
+[2025-06-01 02:31:23.937] ckpool stratifier starting
+[2025-06-01 02:31:23.937] ckpool connector starting
+[2025-06-01 02:31:23.937] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:31:24.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:24.188] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:24.189] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:24.439] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:24.439] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:24.439] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:24.439] CRITICAL: No bitcoinds active!
+[2025-06-01 02:31:28.937] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:31:29.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:29.188] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:29.188] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:29.690] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:29.690] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:29.690] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:29.690] CRITICAL: No bitcoinds active!
+[2025-06-01 02:31:33.937] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:31:34.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:34.188] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:34.188] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:34.941] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:34.941] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:34.941] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:34.941] CRITICAL: No bitcoinds active!
+[2025-06-01 02:31:38.937] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:31:39.191] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:39.191] HTTP response to ( "getblock...) 0.254s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:39.191] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:40.193] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:40.193] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:40.193] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:40.193] CRITICAL: No bitcoinds active!
+[2025-06-01 02:31:43.937] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:31:44.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:44.188] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:44.188] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:45.444] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:45.444] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:45.444] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:45.444] CRITICAL: No bitcoinds active!
+[2025-06-01 02:31:48.938] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:31:49.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:49.188] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:49.188] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:50.695] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:50.695] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:50.695] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:50.695] CRITICAL: No bitcoinds active!
+[2025-06-01 02:31:53.938] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:31:54.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:54.188] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:54.188] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:55.946] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:55.946] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:55.946] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:31:55.946] CRITICAL: No bitcoinds active!
+[2025-06-01 02:31:58.938] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:31:59.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:31:59.188] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:31:59.188] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:01.197] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:01.197] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:01.197] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:01.197] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:03.938] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:04.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:04.188] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:04.188] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:06.448] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:06.448] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:06.448] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:06.448] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:08.938] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:09.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:09.188] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:09.188] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:11.699] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:11.699] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:11.699] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:11.699] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:13.938] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:14.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:14.188] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:14.188] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:16.950] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:16.950] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:16.950] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:16.950] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:18.938] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:19.189] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:19.189] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:19.189] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:22.201] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:22.201] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:22.201] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:22.201] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:23.938] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:24.189] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:24.189] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:27.452] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:27.452] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:27.452] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:27.452] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:28.938] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:29.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:29.188] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:29.188] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:32.703] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:32.703] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:32.703] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:32.703] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:33.939] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:34.189] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:34.189] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:34.189] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:37.954] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:37.954] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:37.954] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:37.954] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:38.939] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:39.189] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:39.189] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:39.189] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:43.205] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:43.205] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:43.205] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:43.205] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:43.939] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:44.189] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:44.189] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:44.189] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:48.456] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:48.456] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:48.456] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:48.456] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:48.939] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:49.189] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:49.189] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:49.189] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:53.707] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:53.707] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:53.707] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:53.707] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:53.939] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:54.189] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:54.189] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:54.189] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:58.939] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:32:58.958] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:58.958] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:58.958] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:32:58.958] CRITICAL: No bitcoinds active!
+[2025-06-01 02:32:59.208] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:32:59.208] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:32:59.208] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:03.939] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:04.189] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:04.189] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:04.189] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:04.440] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:04.440] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:04.440] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:04.440] CRITICAL: No bitcoinds active!
+[2025-06-01 02:33:08.939] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:09.189] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:09.189] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:09.189] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:09.691] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:09.692] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:09.692] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:09.692] CRITICAL: No bitcoinds active!
+[2025-06-01 02:33:13.939] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:14.189] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:14.189] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:14.189] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:14.943] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:14.943] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:14.943] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:14.943] CRITICAL: No bitcoinds active!
+[2025-06-01 02:33:18.939] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:19.190] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:19.190] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:19.190] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:20.195] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:20.195] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:20.195] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:20.195] CRITICAL: No bitcoinds active!
+[2025-06-01 02:33:23.940] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:24.189] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:24.189] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:24.189] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:25.446] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:25.446] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:25.446] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:25.446] CRITICAL: No bitcoinds active!
+[2025-06-01 02:33:28.940] Connector failed to bind to socket for 2 minutes with errno 98: Address already in use
+[2025-06-01 02:33:28.940] Connector failure, shutting down with errno 98: Address already in use
+[2025-06-01 02:33:29.175] File solobtc/main.pid exists
+[2025-06-01 02:33:29.176] Setting maxclients to 921 due to max open file limit of 1024
+[2025-06-01 02:33:29.176] ckpool generator starting
+[2025-06-01 02:33:29.176] ckpool stratifier starting
+[2025-06-01 02:33:29.176] ckpool connector starting
+[2025-06-01 02:33:29.176] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:29.427] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:29.427] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:29.427] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:29.678] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:29.678] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:29.678] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:29.678] CRITICAL: No bitcoinds active!
+[2025-06-01 02:33:34.176] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:34.430] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:34.430] HTTP response to ( "getblock...) 0.253s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:34.430] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:34.930] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:34.930] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:34.930] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:34.930] CRITICAL: No bitcoinds active!
+[2025-06-01 02:33:39.176] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:39.430] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:39.430] HTTP response to ( "getblock...) 0.253s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:39.430] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:40.181] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:40.181] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:40.181] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:40.181] CRITICAL: No bitcoinds active!
+[2025-06-01 02:33:44.176] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:44.430] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:44.430] HTTP response to ( "getblock...) 0.253s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:44.430] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:45.433] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:45.433] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:45.433] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:45.433] CRITICAL: No bitcoinds active!
+[2025-06-01 02:33:49.177] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:49.430] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:49.430] HTTP response to ( "getblock...) 0.254s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:49.430] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:50.685] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:50.685] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:50.685] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:50.685] CRITICAL: No bitcoinds active!
+[2025-06-01 02:33:54.177] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:54.430] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:54.430] HTTP response to ( "getblock...) 0.253s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:54.430] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:55.937] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:55.937] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:55.937] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:33:55.937] CRITICAL: No bitcoinds active!
+[2025-06-01 02:33:59.177] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:33:59.427] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:33:59.427] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:33:59.427] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:01.188] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:01.188] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:01.188] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:01.188] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:04.177] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:04.427] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:04.427] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:04.427] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:06.440] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:06.440] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:06.440] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:06.440] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:09.177] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:09.428] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:09.428] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:09.428] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:11.691] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:11.691] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:11.691] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:11.691] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:14.177] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:14.428] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:14.428] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:14.428] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:16.943] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:16.943] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:16.943] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:16.943] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:19.177] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:19.428] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:19.428] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:19.428] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:22.195] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:22.195] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:22.195] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:22.195] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:24.177] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:24.428] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:24.428] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:24.428] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:27.446] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:27.446] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:27.446] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:27.446] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:29.177] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:29.428] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:29.428] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:29.428] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:32.698] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:32.698] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:32.699] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:34.178] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:34.428] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:34.428] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:34.428] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:37.950] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:37.950] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:37.950] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:37.950] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:39.178] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:39.428] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:39.428] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:39.429] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:43.201] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:43.202] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:43.202] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:43.202] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:44.178] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:44.428] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:44.428] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:44.428] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:48.453] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:48.453] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:48.453] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:48.453] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:49.178] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:49.428] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:49.429] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:49.429] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:53.705] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:53.705] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:53.705] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:53.705] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:54.178] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:54.428] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:54.428] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:54.429] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:58.956] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:58.956] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:58.956] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:34:58.956] CRITICAL: No bitcoinds active!
+[2025-06-01 02:34:59.178] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:34:59.429] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:34:59.429] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:34:59.429] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:04.178] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:35:04.208] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:04.208] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:04.208] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:04.208] CRITICAL: No bitcoinds active!
+[2025-06-01 02:35:04.458] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:04.458] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:04.459] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:09.178] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:35:09.429] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:09.429] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:09.429] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:09.680] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:09.680] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:09.680] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:09.680] CRITICAL: No bitcoinds active!
+[2025-06-01 02:35:14.179] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:35:14.428] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:14.428] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:14.428] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:14.931] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:14.931] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:14.931] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:14.931] CRITICAL: No bitcoinds active!
+[2025-06-01 02:35:19.179] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:35:19.429] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:19.429] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:19.429] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:20.183] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:20.183] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:20.183] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:20.183] CRITICAL: No bitcoinds active!
+[2025-06-01 02:35:24.179] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:35:24.429] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:24.429] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:24.429] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:25.435] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:25.435] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:25.435] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:25.435] CRITICAL: No bitcoinds active!
+[2025-06-01 02:35:29.179] Connector failed to bind to socket, retrying in 5s
+[2025-06-01 02:35:29.429] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:29.429] HTTP response to ( "getblock...) 0.250s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:29.429] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:30.686] Select timed out in read_socket_line with errno 11: Resource temporarily unavailable
+[2025-06-01 02:35:30.686] HTTP response to ( "getblock...) 0.251s not ok: HTTP/1.1 401 Unauthorized
+[2025-06-01 02:35:30.686] localhost:8332 Failed to get valid json response to getblocktemplate
+[2025-06-01 02:35:30.687] CRITICAL: No bitcoinds active!
+[2025-06-01 02:35:34.179] Connector failed to bind to socket for 2 minutes with errno 98: Address already in use
