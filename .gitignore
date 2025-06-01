@@ -2,6 +2,10 @@
 *.bin
 *.la
 *.lo
+*.log
+logs/*
+
+ckpool.conf
 
 autom4te.cache
 .deps
@@ -32,6 +36,7 @@ mkinstalldirs
 *.swp
 src/ckpool
 src/ckpmsg
+src/notifier
 ltmain.sh
 
 *.m4
@@ -45,3 +50,5 @@ test/sha256
 test/sha256.log
 test/sha256.trs
 test/test-suite.log
+
+solobtc/*
