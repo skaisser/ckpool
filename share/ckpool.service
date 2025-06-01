@@ -1,0 +1,26 @@
+# This is an exmaple systemd unit.  It should be copied to:
+# /etc/systemd/system/ckpool.service
+#
+# If you use the PrivateTmp=yes then you use must use
+# -s option for ckpool to specify where to write the pid file to.
+#
+
+[Unit]
+Description=ckpool solo Bitcoin stratum proxy
+After=multi-user.target bitcoind.service
+Requires=bitcoind.service
+
+[Service]
+User=ckpool-mainnet
+Group=mainnet
+Type=simple
+Restart=always
+WorkingDirectory=/home/ckpool-mainnet/solobtc
+ExecStart=/home/ckpool-mainnet/solobtc/src/ckpool -B -s solobtc
+PrivateTmp=yes
+ProtectSystem=full
+NoNewPrivileges=yes
+PrivateDevices=yes
+
+[Install]
+WantedBy=multi-user.target
