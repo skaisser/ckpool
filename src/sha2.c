@@ -110,7 +110,7 @@ void sha256_transf(sha256_ctx *ctx, const unsigned char *message,
 	sha256_sse4(message, ctx->h, block_nb);
 }
 #elif defined(USE_ARM_SHA2)
-extern void sha256_arm_sha2(const unsigned char *, uint32_t[8], uint64_t);
+extern void sha256_arm_sha2(uint32_t[8], const unsigned char *, uint64_t);
 
 void sha256_transf(sha256_ctx *ctx, const unsigned char *message,
                    unsigned int block_nb)
