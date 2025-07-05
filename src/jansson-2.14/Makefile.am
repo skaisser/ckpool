@@ -8,6 +8,5 @@ dvi:
 	$(MAKE) SPHINXOPTS_EXTRA=-W html
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = jansson.pc
 
 TESTS = scripts/clang-format-check
