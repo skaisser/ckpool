@@ -2,8 +2,6 @@
 *.bin
 *.la
 *.lo
-*.log
-logs/*
 
 autom4te.cache
 .deps
@@ -24,6 +22,8 @@ config.guess
 config.sub
 
 *~
+logs/*
+solobtc/*
 
 ext_deps
 config.h.in
@@ -34,7 +34,6 @@ mkinstalldirs
 *.swp
 src/ckpool
 src/ckpmsg
-src/notifier
 ltmain.sh
 
 *.m4
@@ -44,7 +43,3 @@ ltmain.sh
 libtool
 
 test-driver
-test/sha256
-test/sha256.log
-test/sha256.trs
-test/test-suite.log
