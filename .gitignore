@@ -5,8 +5,6 @@
 *.log
 logs/*
 
-ckpool.conf
-
 autom4te.cache
 .deps
 
@@ -50,5 +48,3 @@ test/sha256
 test/sha256.log
 test/sha256.trs
 test/test-suite.log
-
-solobtc/*
