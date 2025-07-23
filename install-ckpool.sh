@@ -228,9 +228,9 @@ cat > ckpool.conf << EOF
         "0.0.0.0:3333"
     ],
 
-    "mindiff": 1,
-    "startdiff": 42,
-    "maxdiff": 0,
+    "mindiff": 500000,
+    "startdiff": 500000,
+    "maxdiff": 1000000,
     "logdir": "logs",
 
     "stratum_port": 3333,
@@ -244,11 +244,6 @@ cat > ckpool.conf << EOF
         "bind": "0.0.0.0:3333",
         "bind_address": "0.0.0.0",
         "port": 3333
-    },
-    "api": {
-        "bind": "127.0.0.1:4028",
-        "port": 4028,
-        "enabled": true
     }
 }
 EOF
