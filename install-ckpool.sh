@@ -23,23 +23,7 @@ if [ "$EUID" -eq 0 ]; then
    exit 1
 fi
 
-# Set installation directory
-INSTALL_DIR="$HOME/ckpool"
-echo "Installing CKPool to: $INSTALL_DIR"
-echo
-
-# Create directory
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-
-# Install dependencies
-echo "Installing dependencies..."
-sudo apt-get update
-sudo apt-get install -y build-essential autoconf automake libtool \
-    libssl-dev libjansson-dev libcurl4-openssl-dev libgmp-dev \
-    libevent-dev git screen pkg-config jq
-
-# Save current directory as source directory
+# Save the source directory (where script is run from)
 SOURCE_DIR="$(pwd)"
 
 # Check if we're running from the source directory
@@ -56,7 +40,22 @@ else
     exit 1
 fi
 
-# Use the current directory as source
+# Set installation directory
+INSTALL_DIR="$HOME/ckpool"
+echo "Installing CKPool to: $INSTALL_DIR"
+echo
+
+# Install dependencies
+echo "Installing dependencies..."
+sudo apt-get update
+sudo apt-get install -y build-essential autoconf automake libtool \
+    libssl-dev libjansson-dev libcurl4-openssl-dev libgmp-dev \
+    libevent-dev git screen pkg-config jq
+
+# Create installation directory
+mkdir -p "$INSTALL_DIR"
+
+# Now work in the source directory for building
 cd "$SOURCE_DIR"
 
 # Fix build issues
