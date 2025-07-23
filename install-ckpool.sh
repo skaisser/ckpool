@@ -119,6 +119,19 @@ chmod 755 logs users pool data
 # Copy binaries to main directory for easy access
 cp build/bin/* . 2>/dev/null || true
 
+# Create symlinks for easy access
+echo "Creating symlinks for system-wide access..."
+sudo ln -sf "$INSTALL_DIR/ckpmsg" /usr/local/bin/ckpmsg 2>/dev/null || true
+sudo ln -sf "$INSTALL_DIR/ckpool" /usr/local/bin/ckpool 2>/dev/null || true
+sudo ln -sf "$INSTALL_DIR/notifier" /usr/local/bin/notifier 2>/dev/null || true
+
+# Verify symlinks
+if [ -L "/usr/local/bin/ckpmsg" ]; then
+    echo -e "${GREEN}✓ Created symlink for ckpmsg${NC}"
+else
+    echo -e "${YELLOW}! Could not create symlink for ckpmsg (may need sudo)${NC}"
+fi
+
 echo
 echo -e "${GREEN}✓ CKPool installed successfully!${NC}"
 echo
@@ -340,15 +353,12 @@ echo
 echo "Monitor logs:"
 echo "  tail -f ~/ckpool/logs/ckpool.log"
 echo
-echo "Query pool stats (ckpmsg):"
-echo "  ~/ckpool/ckpmsg -s /tmp/ckpool/stratifier stats"
+echo "Query pool stats with ckpmsg:"
+echo "  ckpmsg -s /tmp/ckpool/stratifier stats"
+echo "  ckpmsg -s /tmp/ckpool/stratifier users"
+echo "  ckpmsg -s /tmp/ckpool/stratifier workers"
 echo
-echo "To use ckpmsg from anywhere, add to PATH:"
-echo "  echo 'export PATH=\"\$HOME/ckpool:\$PATH\"' >> ~/.bashrc"
-echo "  source ~/.bashrc"
-echo
-echo "Or create a system-wide link:"
-echo "  sudo ln -s ~/ckpool/ckpmsg /usr/local/bin/ckpmsg"
+echo "See API documentation: CKPOOL_API_GUIDE.md"
 echo
 echo "Note: CKPool will create user share logs in ~/ckpool/users/"
 echo "tracking shares by username for your external payment system."
