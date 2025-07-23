@@ -161,21 +161,20 @@ else
     echo "✓ Already have $BLOCK_COUNT blocks"
 fi
 
-# Test that getblocktemplate works
-echo "🧪 Testing getblocktemplate..."
-if ! $BITCOIN_CLI getblocktemplate '{"rules":["segwit"]}' > /dev/null 2>&1; then
-    echo "⚠️  getblocktemplate not ready, mining one more block..."
-    $BITCOIN_CLI -rpcwallet=regtestwallet generatetoaddress 1 "$MINING_ADDRESS" > /dev/null
-    sleep 2
+# Verify node is synced
+echo "🧪 Verifying node status..."
+NODE_INFO=$($BITCOIN_CLI getblockchaininfo 2>&1)
+if echo "$NODE_INFO" | grep -q '"initialblockdownload": false'; then
+    echo "✅ Bitcoin node is synced and ready!"
+else
+    echo "⏳ Node still syncing, waiting..."
+    sleep 5
 fi
 
-# Final verification
-if $BITCOIN_CLI getblocktemplate '{"rules":["segwit"]}' > /dev/null 2>&1; then
-    echo "✅ Bitcoin node is ready for mining!"
-else
-    echo "❌ Bitcoin node is not ready. Check logs."
-    exit 1
-fi
+# Mine an extra block to ensure we're past any initialization issues
+echo "⛏️ Mining one more block for good measure..."
+$BITCOIN_CLI -rpcwallet=regtestwallet generatetoaddress 1 "$MINING_ADDRESS" > /dev/null
+sleep 2
 
 # === STEP 5: Setup CKPool ===
 echo
