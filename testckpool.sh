@@ -49,11 +49,54 @@ if [ ! -f "./ckpool" ]; then
     exit 1
 fi
 
-# Check if config exists
-if [ ! -f "ckpool.conf" ]; then
-    echo "❌ ckpool.conf not found"
-    echo "Please configure CKPool first"
-    exit 1
-fi
+# Create regtest-specific config
+echo "📝 Creating regtest configuration..."
 
-./ckpool -c ckpool.conf
+# Get RPC credentials from regtest bitcoin.conf
+RPC_USER=$(grep "^rpcuser=" "$REGTEST_DIR/bitcoin.conf" | cut -d'=' -f2)
+RPC_PASS=$(grep "^rpcpassword=" "$REGTEST_DIR/bitcoin.conf" | cut -d'=' -f2)
+
+cat > ckpool-regtest.conf << EOF
+{
+    "btcd": [
+        {
+            "url": "127.0.0.1:18443",
+            "auth": "$RPC_USER",
+            "pass": "$RPC_PASS",
+            "notify": true
+        }
+    ],
+    "btcaddress": "bchreg:qz7ypfwrmmv0vmtl6wcac0tkahm9v08v75jkr3xenk",
+    "btcsig": "",
+    "pooladdress": "bchreg:qz7ypfwrmmv0vmtl6wcac0tkahm9v08v75jkr3xenk",
+    "poolfee": 0,
+
+    "blockpoll": 100,
+    "update_interval": 30,
+    "serverurl": [
+        "0.0.0.0:3333"
+    ],
+
+    "mindiff": 1,
+    "startdiff": 1,
+    "maxdiff": 0,
+    "logdir": "logs",
+
+    "stratum_port": 3333,
+    "node_warning": false,
+    "log_shares": true,
+
+    "asicboost": true,
+    "version_mask": "1fffe000",
+
+    "connector": {
+        "bind": "0.0.0.0:3333",
+        "bind_address": "0.0.0.0",
+        "port": 3333
+    }
+}
+EOF
+
+echo "✅ Created ckpool-regtest.conf with port 18443"
+
+./ckpool -c ckpool-regtest.conf
