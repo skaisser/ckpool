@@ -18,7 +18,8 @@ echo
 
 # Configuration
 REGTEST_DIR="$HOME/.bitcoin-regtest"
-CKPOOL_DIR="$(pwd)"  # Use current directory for test
+CKPOOL_BINARY="$HOME/ckpool/ckpool"  # Use production binary
+CONFIG_DIR="$(pwd)"  # Config in current directory
 BITCOIN_CLI="bitcoin-cli -datadir=$REGTEST_DIR -regtest"
 BITCOIND="bitcoind -datadir=$REGTEST_DIR -regtest"
 
@@ -195,33 +196,19 @@ fi
 echo
 echo "🔧 Setting up CKPool for regtest..."
 
-# Check if we have ckpool binary in current directory
-if [ ! -f "./ckpool" ]; then
-    # Check if we have source files
-    if [ -f "./src/ckpool" ]; then
-        echo "✓ Found compiled ckpool in src/"
-        cp src/ckpool ./
-        cp src/ckpmsg ./
-        cp src/notifier ./
-    else
-        echo -e "${RED}❌ CKPool binary not found${NC}"
-        echo "Building ckpool..."
-        if [ -f "Makefile" ]; then
-            make -j$(nproc)
-            cp src/ckpool ./
-            cp src/ckpmsg ./
-            cp src/notifier ./
-        else
-            echo "Please run ./configure first"
-            exit 1
-        fi
-    fi
+# Check if production ckpool exists
+if [ ! -f "$CKPOOL_BINARY" ]; then
+    echo -e "${RED}❌ CKPool not found at: $CKPOOL_BINARY${NC}"
+    echo "Please run install-ckpool.sh first"
+    exit 1
 fi
 
-# Create regtest-specific config
-echo "📝 Creating regtest configuration..."
+echo "✓ Using ckpool from: $CKPOOL_BINARY"
 
-cat > ckpool-regtest.conf << EOF
+# Create regtest-specific config in current directory
+echo "📝 Creating regtest configuration in: $CONFIG_DIR"
+
+cat > "$CONFIG_DIR/ckpool-regtest.conf" << EOF
 {
     "btcd": [
         {
@@ -263,10 +250,10 @@ cat > ckpool-regtest.conf << EOF
 }
 EOF
 
-# Create separate log directory for regtest
-mkdir -p logs-regtest
+# Create separate log directory for regtest in production ckpool dir
+mkdir -p "$HOME/ckpool/logs-regtest"
 
-echo -e "${GREEN}✓ Created ckpool-regtest.conf${NC}"
+echo -e "${GREEN}✓ Created ckpool-regtest.conf in $CONFIG_DIR${NC}"
 
 # === STEP 6: Start CKPool ===
 echo
@@ -277,15 +264,17 @@ rm -rf /tmp/ckpool 2>/dev/null || true
 
 if [ "$1" != "nostart" ]; then
     # Start ckpool with regtest config
-    echo "Starting ckpool with command: ./ckpool -c ckpool-regtest.conf -L"
-    ./ckpool -c ckpool-regtest.conf -L &
+    echo "Starting ckpool with command: $CKPOOL_BINARY -c $CONFIG_DIR/ckpool-regtest.conf -L"
+    cd "$HOME/ckpool"  # Run from ckpool directory for logs
+    "$CKPOOL_BINARY" -c "$CONFIG_DIR/ckpool-regtest.conf" -L &
     CKPOOL_PID=$!
+    cd "$CONFIG_DIR"  # Go back
 else
     echo "Skipping ckpool start (nostart flag set)"
     echo
     echo "To manually start ckpool after debugging:"
-    echo "  cd $CKPOOL_DIR"
-    echo "  ./ckpool -c ckpool-regtest.conf -L"
+    echo "  cd $HOME/ckpool"
+    echo "  $CKPOOL_BINARY -c $CONFIG_DIR/ckpool-regtest.conf -L"
     echo
     exit 0
 fi
@@ -322,7 +311,8 @@ echo
 echo "📊 Status:"
 echo "  - Bitcoind regtest: Running on port 18443"
 echo "  - CKPool: Running on port 3333"
-echo "  - Logs: $CKPOOL_DIR/logs-regtest/"
+echo "  - Config: $CONFIG_DIR/ckpool-regtest.conf"
+echo "  - Logs: $HOME/ckpool/logs-regtest/"
 echo
 echo "🔌 Connect your miner:"
 echo "  - Pool: stratum+tcp://localhost:3333"
@@ -332,7 +322,7 @@ echo
 echo "📈 Monitor with:"
 echo "  - Stats: ckpmsg -s /tmp/ckpool/stratifier stats"
 echo "  - Users: ckpmsg -s /tmp/ckpool/stratifier users"
-echo "  - Logs: tail -f $CKPOOL_DIR/logs-regtest/ckpool.log"
+echo "  - Logs: tail -f $HOME/ckpool/logs-regtest/ckpool.log"
 echo
 echo "⛏️ Generate blocks:"
 echo "  $BITCOIN_CLI generatetoaddress 1 $MINING_ADDRESS"
