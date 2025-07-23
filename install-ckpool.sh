@@ -340,6 +340,16 @@ echo
 echo "Monitor logs:"
 echo "  tail -f ~/ckpool/logs/ckpool.log"
 echo
+echo "Query pool stats (ckpmsg):"
+echo "  ~/ckpool/ckpmsg -s /tmp/ckpool/stratifier stats"
+echo
+echo "To use ckpmsg from anywhere, add to PATH:"
+echo "  echo 'export PATH=\"\$HOME/ckpool:\$PATH\"' >> ~/.bashrc"
+echo "  source ~/.bashrc"
+echo
+echo "Or create a system-wide link:"
+echo "  sudo ln -s ~/ckpool/ckpmsg /usr/local/bin/ckpmsg"
+echo
 echo "Note: CKPool will create user share logs in ~/ckpool/users/"
 echo "tracking shares by username for your external payment system."
 echo
