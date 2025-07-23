@@ -94,11 +94,15 @@ echo " ✅"
 echo "💼 Setting up wallet..."
 
 # Create or load wallet
-if ! $BITCOIN_CLI listwallets | grep -q "regtestwallet"; then
-    $BITCOIN_CLI createwallet "regtestwallet" > /dev/null
+if $BITCOIN_CLI listwallets 2>/dev/null | grep -q "regtestwallet"; then
+    echo "✓ Wallet 'regtestwallet' already exists"
 else
-    echo "Wallet already exists"
+    echo "Creating new wallet..."
+    $BITCOIN_CLI createwallet "regtestwallet" 2>&1 > /dev/null || echo "✓ Wallet already exists"
 fi
+
+# Make sure wallet is loaded
+$BITCOIN_CLI loadwallet "regtestwallet" 2>/dev/null || true
 
 # Get mining address
 MINING_ADDRESS=$($BITCOIN_CLI -rpcwallet=regtestwallet getnewaddress)
