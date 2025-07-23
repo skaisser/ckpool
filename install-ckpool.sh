@@ -39,13 +39,17 @@ sudo apt-get install -y build-essential autoconf automake libtool \
     libssl-dev libjansson-dev libcurl4-openssl-dev libgmp-dev \
     libevent-dev git screen pkg-config jq
 
+# Save current directory as source directory
+SOURCE_DIR="$(pwd)"
+
 # Check if we're running from the source directory
-if [ -f "configure.ac" ] && [ -f "src/ckpool.c" ]; then
-    echo "Running from CKPool source directory..."
-    SOURCE_DIR="$(pwd)"
+if [ -f "$SOURCE_DIR/configure.ac" ] && [ -f "$SOURCE_DIR/src/ckpool.c" ]; then
+    echo "Running from CKPool source directory: $SOURCE_DIR"
 else
     echo -e "${RED}Error: This script must be run from the CKPool source directory${NC}"
-    echo "Please clone the repository first:"
+    echo "Looking for configure.ac and src/ckpool.c in: $SOURCE_DIR"
+    echo
+    echo "Please make sure you're in the ckpool directory:"
     echo "  git clone git@github.com:skaisser/ckpool.git"
     echo "  cd ckpool"
     echo "  ./install-ckpool.sh"
