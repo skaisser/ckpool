@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # CKPool Standalone Installation Script for Bitcoin Cash
-# Installs to ~/ckpool directory
+# Builds from current directory and installs to ~/ckpool directory
+# Usage: Run this script from the cloned ckpool repository
 
 set -e
 
@@ -38,15 +39,21 @@ sudo apt-get install -y build-essential autoconf automake libtool \
     libssl-dev libjansson-dev libcurl4-openssl-dev libgmp-dev \
     libevent-dev git screen pkg-config jq
 
-# Clone CKPool
-echo
-echo "Cloning CKPool repository..."
-if [ ! -d "ckpool-source" ]; then
-    echo "Cloning from custom CKPool repository with BCH enhancements..."
-    git clone git@github.com:skaisser/ckpool.git ckpool-source --depth 1
+# Check if we're running from the source directory
+if [ -f "configure.ac" ] && [ -f "src/ckpool.c" ]; then
+    echo "Running from CKPool source directory..."
+    SOURCE_DIR="$(pwd)"
+else
+    echo -e "${RED}Error: This script must be run from the CKPool source directory${NC}"
+    echo "Please clone the repository first:"
+    echo "  git clone git@github.com:skaisser/ckpool.git"
+    echo "  cd ckpool"
+    echo "  ./install-ckpool.sh"
+    exit 1
 fi
 
-cd ckpool-source
+# Use the current directory as source
+cd "$SOURCE_DIR"
 
 # Fix build issues
 echo
