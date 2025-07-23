@@ -22,26 +22,33 @@ CKPOOL_DIR="$HOME/ckpool"
 BITCOIN_CLI="bitcoin-cli -datadir=$REGTEST_DIR -regtest"
 BITCOIND="bitcoind -datadir=$REGTEST_DIR -regtest"
 
-# === STEP 1: Stop any running regtest services ===
-echo "🛑 Stopping any existing regtest services..."
+# === STEP 1: Stop any running services (TEST SERVER ONLY) ===
+echo "🛑 Stopping existing services for test environment..."
 
-# Stop regtest bitcoind if running
-if $BITCOIN_CLI stop 2>/dev/null; then
-    echo "Stopping regtest bitcoind..."
-    sleep 2
-fi
+# Stop systemctl services first (they auto-restart)
+echo "Stopping systemctl services..."
+sudo systemctl stop bitcoind 2>/dev/null || true
+sudo systemctl stop ckpool 2>/dev/null || true
+sleep 2
 
-# Stop ckpool if running (safely check if it's using regtest config)
+# Now stop any remaining processes
+echo "Stopping any remaining bitcoind..."
+bitcoin-cli stop 2>/dev/null || true
+bitcoin-cli -regtest stop 2>/dev/null || true
+$BITCOIN_CLI stop 2>/dev/null || true
+sleep 3
+
+# Stop any remaining ckpool
 if pgrep -x "ckpool" > /dev/null; then
-    # Check if it's running with regtest config
-    if ps aux | grep "ckpool.*regtest" | grep -v grep > /dev/null; then
-        echo "Stopping regtest ckpool..."
-        pkill -f "ckpool.*regtest" || true
-        sleep 2
-    else
-        echo -e "${YELLOW}! Production ckpool is running. Not touching it.${NC}"
-    fi
+    echo "Stopping remaining ckpool..."
+    pkill -TERM ckpool || true
+    sleep 2
+    # Force kill if still running
+    pkill -9 ckpool 2>/dev/null || true
 fi
+
+# Clean up unix sockets
+rm -rf /tmp/ckpool 2>/dev/null || true
 
 # === STEP 2: Setup Bitcoin Cash Regtest ===
 echo
@@ -56,7 +63,7 @@ RPC_PASS="${BCH_RPC_PASS:-$(openssl rand -base64 32 | tr -d '=+/' | cut -c1-25)}
 
 # Create bitcoin.conf with blocknotify
 cat > "$REGTEST_DIR/bitcoin.conf" <<EOF
-regtest=1
+[regtest]
 server=1
 txindex=1
 rpcuser=$RPC_USER
@@ -228,12 +235,18 @@ if [ "$1" == "stop" ]; then
         pkill -f "ckpool.*regtest"
     fi
     
-    # Stop bitcoind
+    # Stop regtest bitcoind
     if $BITCOIN_CLI stop 2>/dev/null; then
-        echo "Stopping bitcoind..."
+        echo "Stopping regtest bitcoind..."
+        sleep 2
     fi
     
-    echo "✅ Regtest environment stopped"
+    echo
+    echo "🔄 Restarting production services..."
+    sudo systemctl start bitcoind 2>/dev/null || echo "bitcoind service not found"
+    sudo systemctl start ckpool 2>/dev/null || echo "ckpool service not found"
+    
+    echo "✅ Regtest environment stopped, production services restarted"
     exit 0
 fi
 
