@@ -7,7 +7,7 @@
 set -e
 
 echo "======================================"
-echo "EloPool CkPool BCH      Pool Installer"
+echo "EloPool CKPool BCH Production Installer"
 echo "======================================"
 echo
 
@@ -34,8 +34,7 @@ else
     echo "Looking for configure.ac and src/ckpool.c in: $SOURCE_DIR"
     echo
     echo "Please make sure you're in the ckpool directory:"
-    echo "  git clone git@github.com:skaisser/ckpool.git"
-    echo "  cd ckpool"
+    echo "  cd ~/my-ckpool"
     echo "  ./install-ckpool.sh"
     exit 1
 fi
@@ -45,12 +44,33 @@ INSTALL_DIR="$HOME/ckpool"
 echo "Installing CKPool to: $INSTALL_DIR"
 echo
 
-# Install dependencies
-echo "Installing dependencies..."
-sudo apt-get update
-sudo apt-get install -y build-essential autoconf automake libtool \
-    libssl-dev libjansson-dev libcurl4-openssl-dev libgmp-dev \
-    libevent-dev git screen pkg-config jq
+# Install dependencies (if not already installed)
+echo "Checking dependencies..."
+if ! dpkg -l | grep -q "libjansson-dev"; then
+    echo "Installing dependencies..."
+    sudo apt-get update
+    sudo apt-get install -y build-essential autoconf automake libtool \
+        libssl-dev libjansson-dev libcurl4-openssl-dev libgmp-dev \
+        libevent-dev git screen pkg-config jq
+else
+    echo -e "${GREEN}✓ Dependencies already installed${NC}"
+fi
+
+# Stop any running ckpool first
+echo "Stopping any running CKPool instances..."
+if pgrep -x "ckpool" > /dev/null; then
+    pkill -TERM ckpool 2>/dev/null || true
+    sleep 2
+    # Force kill if still running
+    pkill -9 ckpool 2>/dev/null || true
+else
+    echo "No ckpool process running"
+fi
+
+# Clean up old binaries
+echo "Cleaning up old binaries..."
+rm -f "$INSTALL_DIR/ckpool" "$INSTALL_DIR/ckpmsg" "$INSTALL_DIR/notifier" 2>/dev/null || true
+rm -rf "$INSTALL_DIR/build" 2>/dev/null || true
 
 # Create installation directory
 mkdir -p "$INSTALL_DIR"
@@ -66,16 +86,21 @@ echo "Preparing build environment..."
 mkdir -p m4
 
 # Clean any previous build attempts
+echo "Cleaning previous build..."
+make distclean 2>/dev/null || true
 make clean 2>/dev/null || true
 rm -f ltmain.sh 2>/dev/null || true
+rm -rf autom4te.cache 2>/dev/null || true
+rm -f config.status config.log 2>/dev/null || true
 
 # Run autoreconf with proper flags
 echo "Running autoreconf..."
 autoreconf -fiv
 
-# Configure
+# Configure with production options
 echo
-echo "Configuring CKPool..."
+echo "Configuring CKPool for production..."
+echo "Note: This build includes EloPool branding"
 ./configure --prefix="$INSTALL_DIR/build"
 
 # Build
@@ -100,6 +125,16 @@ echo "Copying binaries..."
 cp src/ckpool "$INSTALL_DIR/" 2>/dev/null || true
 cp src/ckpmsg "$INSTALL_DIR/" 2>/dev/null || true
 cp src/notifier "$INSTALL_DIR/" 2>/dev/null || true
+
+# Clean up build artifacts from source directory
+echo "Cleaning up build artifacts..."
+rm -f "$SOURCE_DIR/ckpool" "$SOURCE_DIR/ckpmsg" "$SOURCE_DIR/notifier" 2>/dev/null || true
+rm -f "$SOURCE_DIR/test-driver" 2>/dev/null || true
+
+# Show binary timestamp to verify it's fresh
+echo
+echo "Binary build timestamp:"
+ls -la "$INSTALL_DIR/ckpool" | awk '{print $6, $7, $8}'
 
 # Go back to main directory
 cd "$INSTALL_DIR"
@@ -183,7 +218,7 @@ cat > ckpool.conf << EOF
         }
     ],
     "btcaddress": "$POOL_ADDRESS",
-    "btcsig": "",
+    "btcsig": "/",
     "pooladdress": "$POOL_ADDRESS",
     "poolfee": $POOL_FEE,
 
@@ -224,7 +259,7 @@ echo -e "${GREEN}✓ Created ckpool.conf${NC}"
 cat > start-ckpool.sh << 'EOF'
 #!/bin/bash
 
-# Start CKPool
+# Start CKPool Production
 echo "Starting CKPool..."
 
 # Check if ckpool is already running
@@ -235,6 +270,9 @@ fi
 
 # Ensure we're in the right directory
 cd "$(dirname "$0")"
+
+# Clear any old unix sockets
+rm -rf /tmp/ckpool 2>/dev/null || true
 
 # Start ckpool
 ./ckpool -c ckpool.conf -L
@@ -249,7 +287,7 @@ chmod +x start-ckpool.sh
 cat > stop-ckpool.sh << 'EOF'
 #!/bin/bash
 
-# Stop CKPool
+# Stop CKPool Production
 echo "Stopping CKPool..."
 
 # Send SIGTERM to ckpool
@@ -262,6 +300,9 @@ if pgrep -x "ckpool" > /dev/null; then
     echo "CKPool still running, force stopping..."
     pkill -9 ckpool
 fi
+
+# Clean up unix sockets
+rm -rf /tmp/ckpool 2>/dev/null || true
 
 echo "CKPool stopped."
 EOF
@@ -363,7 +404,7 @@ echo
 echo "Note: CKPool will create user share logs in ~/ckpool/users/"
 echo "tracking shares by username for your external payment system."
 echo
-echo "Dynamic Coinbase Messages:"
-echo "  - Blocks will show: 'EloPool/Mined by [username]/'"
-echo "  - Connect miners with format: username.workername"
-echo "  - Example: skaisser.rig1 will show 'EloPool/Mined by skaisser/'"
+echo "Coinbase Messages:"
+echo "  - Blocks will show: 'EloPool/' in the coinbase"
+echo "  - The hardcoded 'ckpool' prefix has been replaced with 'EloPool'"
+echo "  - For username-based messages, enable btcsolo mode in config"

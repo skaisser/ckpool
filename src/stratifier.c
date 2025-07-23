@@ -574,7 +574,8 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 	len += wb->enonce2varlen;
 
 	wb->coinb2bin = ckzalloc(512);
-	wb->coinb2len = 0;
+	memcpy(wb->coinb2bin, "\x0a\x45\x6c\x6f\x50\x6f\x6f\x6c", 8);
+	wb->coinb2len = 8;
 	if (ckp->btcsig) {
 		int siglen = strlen(ckp->btcsig);
 
@@ -1000,21 +1001,9 @@ static void __generate_userwb(sdata_t *sdata, workbase_t *wb, user_instance_t *u
 	sdata->userwbs_generated++;
 	userwb = ckzalloc(sizeof(struct userwb));
 	userwb->id = id;
-	
-	/* Create custom coinbase message with username */
-	char custom_msg[256];
-	int custom_len;
-	snprintf(custom_msg, sizeof(custom_msg), "EloPool/Mined by %s/", user->username);
-	custom_len = strlen(custom_msg);
-	
-	/* Allocate space for custom coinbase */
-	userwb->coinb2bin = ckalloc(1 + custom_len + 1 + user->txnlen + wb->coinb3len);
-	userwb->coinb2len = 0;
-	
-	/* Add custom message length and message */
-	userwb->coinb2bin[userwb->coinb2len++] = custom_len;
-	memcpy(userwb->coinb2bin + userwb->coinb2len, custom_msg, custom_len);
-	userwb->coinb2len += custom_len;
+	userwb->coinb2bin = ckalloc(wb->coinb2len + 1 + user->txnlen + wb->coinb3len);
+	memcpy(userwb->coinb2bin, wb->coinb2bin, wb->coinb2len);
+	userwb->coinb2len = wb->coinb2len;
 	userwb->coinb2bin[userwb->coinb2len++] = user->txnlen;
 	memcpy(userwb->coinb2bin + userwb->coinb2len, user->txnbin, user->txnlen);
 	userwb->coinb2len += user->txnlen;

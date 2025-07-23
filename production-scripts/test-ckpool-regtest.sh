@@ -18,10 +18,14 @@ echo
 
 # Configuration
 REGTEST_DIR="$HOME/.bitcoin-regtest"
-CKPOOL_BINARY="$HOME/ckpool/ckpool"  # Use production binary
+REGTEST_PEER_DIR="$HOME/.bitcoin-regtest-peer"
+CKPOOL_BINARY="$HOME/ckpool-test/ckpool"  # Use test binary
+CKPOOL_DIR="$HOME/ckpool-test"  # CKPool test installation directory
 CONFIG_DIR="$(pwd)"  # Config in current directory
 BITCOIN_CLI="bitcoin-cli -datadir=$REGTEST_DIR -regtest"
 BITCOIND="bitcoind -datadir=$REGTEST_DIR -regtest"
+BITCOIN_CLI_PEER="bitcoin-cli -datadir=$REGTEST_PEER_DIR -regtest"
+BITCOIND_PEER="bitcoind -datadir=$REGTEST_PEER_DIR -regtest"
 
 # === STEP 1: Stop any running services (TEST SERVER ONLY) ===
 echo "🛑 Stopping existing services for test environment..."
@@ -37,6 +41,7 @@ echo "Stopping any remaining bitcoind..."
 bitcoin-cli stop 2>/dev/null || true
 bitcoin-cli -regtest stop 2>/dev/null || true
 $BITCOIN_CLI stop 2>/dev/null || true
+$BITCOIN_CLI_PEER stop 2>/dev/null || true
 sleep 3
 
 # Stop any remaining ckpool
@@ -67,6 +72,10 @@ if sudo ufw status | grep -q "Status: active"; then
         echo "Opening port 18444 for Bitcoin regtest P2P..."
         sudo ufw allow 18444/tcp comment "Bitcoin regtest P2P" || true
     fi
+    if ! sudo ufw status | grep -q "18445"; then
+        echo "Opening port 18445 for Bitcoin regtest peer P2P..."
+        sudo ufw allow 18445/tcp comment "Bitcoin regtest peer P2P" || true
+    fi
     if ! sudo ufw status | grep -q "3333"; then
         echo "Opening port 3333 for CKPool Stratum..."
         sudo ufw allow 3333/tcp comment "CKPool Stratum" || true
@@ -83,9 +92,9 @@ echo "🚧 Setting up Bitcoin Cash Regtest node..."
 # Create data directory
 mkdir -p "$REGTEST_DIR"
 
-# Generate RPC credentials
-RPC_USER="${BCH_RPC_USER:-regtest}"
-RPC_PASS="${BCH_RPC_PASS:-$(openssl rand -base64 32 | tr -d '=+/' | cut -c1-25)}"
+# Use simple credentials for testing
+RPC_USER="test"
+RPC_PASS="test"
 
 # Create bitcoin.conf with blocknotify
 cat > "$REGTEST_DIR/bitcoin.conf" <<EOF
@@ -136,6 +145,68 @@ done
 # Additional wait to ensure bitcoind is fully ready
 echo "⏳ Ensuring bitcoind is fully initialized..."
 sleep 5
+
+# === STEP 3.5: Setup peer node for network connectivity ===
+echo
+echo "🔗 Setting up peer node for network connectivity..."
+
+# Create peer data directory
+mkdir -p "$REGTEST_PEER_DIR"
+
+# Create peer bitcoin.conf
+cat > "$REGTEST_PEER_DIR/bitcoin.conf" <<EOF
+[regtest]
+server=1
+txindex=1
+rpcuser=$RPC_USER
+rpcpassword=$RPC_PASS
+rpcbind=127.0.0.1:18446
+rpcallowip=127.0.0.1/32
+rpcport=18446
+port=18445
+fallbackfee=0.00001
+dnsseed=0
+upnp=0
+listen=1
+listenonion=0
+
+# Connect to main node
+addnode=127.0.0.1:18444
+EOF
+
+echo -e "${GREEN}✓ Created peer bitcoin.conf${NC}"
+
+# Start peer bitcoind
+echo "🚀 Starting peer bitcoind..."
+$BITCOIND_PEER -daemon
+
+# Wait for peer to be ready
+echo -n "⏳ Waiting for peer node to start"
+until $BITCOIN_CLI_PEER getblockchaininfo > /dev/null 2>&1; do
+    echo -n "."
+    sleep 1
+done
+echo " ✅"
+
+# Wait for nodes to connect
+echo -n "⏳ Waiting for nodes to connect"
+for i in {1..30}; do
+    CONNECTIONS=$($BITCOIN_CLI getconnectioncount 2>/dev/null || echo "0")
+    if [ "$CONNECTIONS" -gt 0 ]; then
+        echo " ✅ Connected! ($CONNECTIONS peers)"
+        break
+    fi
+    echo -n "."
+    sleep 1
+done
+
+# Verify connection
+PEER_COUNT=$($BITCOIN_CLI getconnectioncount)
+if [ "$PEER_COUNT" -eq 0 ]; then
+    echo -e "${YELLOW}⚠️ Warning: Nodes not connected, forcing connection...${NC}"
+    $BITCOIN_CLI addnode "127.0.0.1:18445" "add"
+    sleep 2
+fi
 
 # === STEP 4: Setup wallet and initial blocks ===
 echo "💼 Setting up wallet..."
@@ -221,11 +292,10 @@ cat > "$CONFIG_DIR/ckpool-regtest.conf" << EOF
     "btcaddress": "$MINING_ADDRESS",
     "btcsig": "",
     "pooladdress": "$MINING_ADDRESS",
-    "poolfee": 0,
-    "donation": 0,
+    "poolfee": 1,
 
-    "blockpoll": 10,
-    "update_interval": 5,
+    "blockpoll": 100,
+    "update_interval": 30,
     "serverurl": [
         "0.0.0.0:3333"
     ],
@@ -246,12 +316,17 @@ cat > "$CONFIG_DIR/ckpool-regtest.conf" << EOF
         "bind": "0.0.0.0:3333",
         "bind_address": "0.0.0.0",
         "port": 3333
+    },
+    "api": {
+        "bind": "127.0.0.1:4028",
+        "port": 4028,
+        "enabled": true
     }
 }
 EOF
 
-# Create separate log directory for regtest in production ckpool dir
-mkdir -p "$HOME/ckpool/logs-regtest"
+# Create separate log directory for regtest in test ckpool dir
+mkdir -p "$CKPOOL_DIR/logs-regtest"
 
 echo -e "${GREEN}✓ Created ckpool-regtest.conf in $CONFIG_DIR${NC}"
 
@@ -263,17 +338,17 @@ echo "🚀 CKPool configuration ready!"
 rm -rf /tmp/ckpool 2>/dev/null || true
 
 if [ "$1" != "nostart" ]; then
-    # Start ckpool with regtest config
-    echo "Starting ckpool with command: $CKPOOL_BINARY -c $CONFIG_DIR/ckpool-regtest.conf -L"
-    cd "$HOME/ckpool"  # Run from ckpool directory for logs
-    "$CKPOOL_BINARY" -c "$CONFIG_DIR/ckpool-regtest.conf" -L &
-    CKPOOL_PID=$!
-    cd "$CONFIG_DIR"  # Go back
+    # Copy service file and start ckpool via systemctl
+    echo "Setting up CKPool systemd service..."
+    sudo cp "$CONFIG_DIR/ckpool-regtest.service" /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl start ckpool-regtest
+    echo "✅ Started ckpool-regtest service"
 else
     echo "Skipping ckpool start (nostart flag set)"
     echo
     echo "To manually start ckpool after debugging:"
-    echo "  cd $HOME/ckpool"
+    echo "  cd $CKPOOL_DIR"
     echo "  $CKPOOL_BINARY -c $CONFIG_DIR/ckpool-regtest.conf -L"
     echo
     exit 0
@@ -284,17 +359,17 @@ echo -n "⏳ Waiting for CKPool to initialize"
 for i in {1..10}; do
     sleep 1
     echo -n "."
-    # Check if process is still running
-    if ! kill -0 $CKPOOL_PID 2>/dev/null; then
-        echo -e " ${RED}❌ CKPool crashed${NC}"
-        echo "Last 20 lines of log:"
-        tail -20 logs-regtest/ckpool.log 2>/dev/null || echo "No log found"
-        exit 1
-    fi
     # Check if ckpool is ready (unix socket exists)
     if [ -S "/tmp/ckpool/stratifier" ]; then
         echo -e " ${GREEN}✅${NC}"
         break
+    fi
+    # Check if process crashed
+    if [ $i -eq 10 ] && [ ! -S "/tmp/ckpool/stratifier" ]; then
+        echo -e " ${RED}❌ CKPool failed to start${NC}"
+        echo "Last 20 lines of log:"
+        tail -20 $CKPOOL_DIR/logs-regtest/ckpool.log 2>/dev/null || echo "No log found"
+        exit 1
     fi
 done
 
@@ -312,7 +387,7 @@ echo "📊 Status:"
 echo "  - Bitcoind regtest: Running on port 18443"
 echo "  - CKPool: Running on port 3333"
 echo "  - Config: $CONFIG_DIR/ckpool-regtest.conf"
-echo "  - Logs: $HOME/ckpool/logs-regtest/"
+echo "  - Logs: $CKPOOL_DIR/logs-regtest/"
 echo
 echo "🔌 Connect your miner:"
 echo "  - Pool: stratum+tcp://localhost:3333"
@@ -322,7 +397,7 @@ echo
 echo "📈 Monitor with:"
 echo "  - Stats: ckpmsg -s /tmp/ckpool/stratifier stats"
 echo "  - Users: ckpmsg -s /tmp/ckpool/stratifier users"
-echo "  - Logs: tail -f $HOME/ckpool/logs-regtest/ckpool.log"
+echo "  - Logs: tail -f $CKPOOL_DIR/logs-regtest/ckpool.log"
 echo
 echo "⛏️ Generate blocks:"
 echo "  $BITCOIN_CLI generatetoaddress 1 $MINING_ADDRESS"
@@ -331,14 +406,24 @@ echo "🛑 To stop everything:"
 echo "  $0 stop"
 echo
 
-# === Handle stop command ===
+fi # End of SKIP_START block
+
+# === Handle commands early ===
 if [ "$1" == "stop" ]; then
     echo "🛑 Stopping regtest environment..."
     
-    # Stop ckpool
-    if pgrep -f "ckpool.*regtest" > /dev/null; then
-        echo "Stopping CKPool..."
-        pkill -f "ckpool.*regtest"
+    # Stop ckpool service
+    if systemctl is-active --quiet ckpool-regtest; then
+        echo "Stopping CKPool regtest service..."
+        sudo systemctl stop ckpool-regtest
+        sleep 2
+    fi
+    
+    # Also kill any remaining ckpool processes
+    if pgrep -x "ckpool" > /dev/null; then
+        echo "Stopping remaining CKPool processes..."
+        pkill -TERM ckpool
+        sleep 2
     fi
     
     # Stop regtest bitcoind
@@ -347,26 +432,137 @@ if [ "$1" == "stop" ]; then
         sleep 2
     fi
     
-    echo
-    echo "🔄 Restarting production services..."
-    sudo systemctl start bitcoind 2>/dev/null || echo "bitcoind service not found"
-    sudo systemctl start ckpool 2>/dev/null || echo "ckpool service not found"
-    
-    # Optionally remove firewall rules
-    read -p "Remove regtest firewall rules? (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        sudo ufw delete allow 18443/tcp 2>/dev/null || true
-        sudo ufw delete allow 18444/tcp 2>/dev/null || true
-        echo "✅ Removed regtest firewall rules"
+    # Stop peer bitcoind
+    if $BITCOIN_CLI_PEER stop 2>/dev/null; then
+        echo "Stopping peer bitcoind..."
+        sleep 2
     fi
     
-    echo "✅ Regtest environment stopped, production services restarted"
+    echo "✅ Regtest environment stopped"
     exit 0
 fi
 
-# Keep script running to show logs
-echo "Press Ctrl+C to stop the test environment"
+# Handle status/logs/mine commands that don't need services started
+if [ "$1" == "status" ] || [ "$1" == "logs" ] || [ "$1" == "mine" ]; then
+    # Jump directly to command handling
+    SKIP_START=true
+elif [ "$1" != "" ] && [ "$1" != "start" ]; then
+    echo "Unknown command: $1"
+    echo "Usage: $0 {start|stop|status|logs|mine [username]}"
+    exit 1
+else
+    SKIP_START=false
+fi
+
+# Only run the startup sequence if not skipping
+if [ "$SKIP_START" != "true" ]; then
+
+# === Handle different commands ===
+case "$1" in
+    "status")
+        echo "🔍 Checking regtest environment status..."
+        echo
+        
+        # Check bitcoind
+        if $BITCOIN_CLI getblockchaininfo > /dev/null 2>&1; then
+            BLOCKS=$($BITCOIN_CLI getblockcount)
+            CONNECTIONS=$($BITCOIN_CLI getconnectioncount)
+            echo "✅ Bitcoin Core (main): Running - $BLOCKS blocks, $CONNECTIONS connections"
+        else
+            echo "❌ Bitcoin Core (main): Not running"
+        fi
+        
+        # Check peer
+        if $BITCOIN_CLI_PEER getblockchaininfo > /dev/null 2>&1; then
+            echo "✅ Bitcoin Core (peer): Running"
+        else
+            echo "❌ Bitcoin Core (peer): Not running"
+        fi
+        
+        # Check ckpool
+        if systemctl is-active --quiet ckpool-regtest; then
+            echo "✅ CKPool: Running (systemd service)"
+            # Try to get stats
+            ckpmsg -s /tmp/ckpool/stratifier stats 2>/dev/null || echo "   (Unable to get stats)"
+        elif pgrep -x "ckpool" > /dev/null; then
+            echo "✅ CKPool: Running (standalone process)"
+            # Try to get stats
+            ckpmsg -s /tmp/ckpool/stratifier stats 2>/dev/null || echo "   (Unable to get stats)"
+        else
+            echo "❌ CKPool: Not running"
+        fi
+        
+        echo
+        exit 0
+        ;;
+        
+    "logs")
+        echo "📜 Showing CKPool logs..."
+        echo "(Press Ctrl+C to exit)"
+        echo
+        tail -f $CKPOOL_DIR/logs-regtest/ckpool.log
+        ;;
+        
+    "mine")
+        USERNAME="${2:-testuser}"
+        echo "⛏️ Testing mining with username: $USERNAME"
+        echo
+        
+        # Get mining address if not set
+        if [ -z "$MINING_ADDRESS" ]; then
+            MINING_ADDRESS=$($BITCOIN_CLI -rpcwallet=regtestwallet getnewaddress 2>/dev/null || echo "bchreg:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy")
+        fi
+        
+        # Generate a block to trigger ckpool
+        echo "Generating a test block..."
+        BLOCKHASH=$($BITCOIN_CLI -rpcwallet=regtestwallet generatetoaddress 1 $MINING_ADDRESS | jq -r '.[0]')
+        echo "Generated block: $BLOCKHASH"
+        
+        # Get block details to check coinbase
+        echo "Checking coinbase message..."
+        COINBASE=$($BITCOIN_CLI getblock $BLOCKHASH 2 | jq -r '.tx[0].vin[0].coinbase' | xxd -r -p)
+        echo "Coinbase text: $COINBASE"
+        
+        # Check if our pool signature is there
+        if echo "$COINBASE" | grep -q "EloPool"; then
+            echo "✅ Found EloPool signature in coinbase!"
+        else
+            echo "❌ EloPool signature not found in coinbase"
+        fi
+        
+        exit 0
+        ;;
+        
+    "start")
+        # Continue with normal start process
+        echo "✅ Starting regtest environment..."
+        ;;
+        
+    *)
+        echo "Usage: $0 {start|stop|status|logs|mine [username]}"
+        echo
+        echo "Commands:"
+        echo "  start   - Start the regtest environment"
+        echo "  stop    - Stop the regtest environment"
+        echo "  status  - Check status of all components"
+        echo "  logs    - View CKPool logs"
+        echo "  mine    - Test mining with optional username"
+        echo
+        echo "Example:"
+        echo "  $0 start                # Start environment"
+        echo "  $0 mine skaisser        # Test mining as 'skaisser'"
+        echo "  $0 status               # Check if everything is running"
+        echo "  $0 logs                 # View logs"
+        echo "  $0 stop                 # Stop everything"
+        exit 1
+        ;;
+esac
+
 echo
-echo "=== CKPool Log ==="
-tail -f logs-regtest/ckpool.log
+echo "✅ Regtest environment is running in background!"
+echo
+echo "Next steps:"
+echo "  - Check status: $0 status"
+echo "  - View logs: $0 logs"
+echo "  - Test mining: $0 mine skaisser"
+echo "  - Stop environment: $0 stop"
