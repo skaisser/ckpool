@@ -160,7 +160,7 @@ cat > ckpool.conf << EOF
         }
     ],
     "btcaddress": "$POOL_ADDRESS",
-    "btcsig": "1",
+    "btcsig": "",
     "pooladdress": "$POOL_ADDRESS",
     "poolfee": $POOL_FEE,
 
@@ -332,3 +332,8 @@ echo "  tail -f ~/ckpool/logs/ckpool.log"
 echo
 echo "Note: CKPool will create user share logs in ~/ckpool/users/"
 echo "tracking shares by username for your external payment system."
+echo
+echo "Dynamic Coinbase Messages:"
+echo "  - Blocks will show: 'EloPool/Mined by [username]/'"
+echo "  - Connect miners with format: username.workername"
+echo "  - Example: skaisser.rig1 will show 'EloPool/Mined by skaisser/'"
