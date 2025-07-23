@@ -50,7 +50,32 @@ fi
 # Clean up unix sockets
 rm -rf /tmp/ckpool 2>/dev/null || true
 
-# === STEP 2: Setup Bitcoin Cash Regtest ===
+# === STEP 2: Check firewall ===
+echo
+echo "🔥 Checking firewall settings..."
+
+# Check if ufw is active
+if sudo ufw status | grep -q "Status: active"; then
+    echo "UFW is active, checking ports..."
+    # Check if ports are already allowed
+    if ! sudo ufw status | grep -q "18443"; then
+        echo "Opening port 18443 for Bitcoin regtest RPC..."
+        sudo ufw allow 18443/tcp comment "Bitcoin regtest RPC" || true
+    fi
+    if ! sudo ufw status | grep -q "18444"; then
+        echo "Opening port 18444 for Bitcoin regtest P2P..."
+        sudo ufw allow 18444/tcp comment "Bitcoin regtest P2P" || true
+    fi
+    if ! sudo ufw status | grep -q "3333"; then
+        echo "Opening port 3333 for CKPool Stratum..."
+        sudo ufw allow 3333/tcp comment "CKPool Stratum" || true
+    fi
+    echo "✅ Firewall ports configured"
+else
+    echo "✓ UFW not active, no firewall changes needed"
+fi
+
+# === STEP 3: Setup Bitcoin Cash Regtest ===
 echo
 echo "🚧 Setting up Bitcoin Cash Regtest node..."
 
@@ -70,7 +95,11 @@ rpcuser=$RPC_USER
 rpcpassword=$RPC_PASS
 rpcallowip=127.0.0.1
 rpcport=18443
+port=18444
 fallbackfee=0.00001
+dnsseed=0
+upnp=0
+listen=1
 
 # CKPool block notifications
 blocknotify=$CKPOOL_DIR/notifier -s /tmp/ckpool/generator -b %s
@@ -86,9 +115,24 @@ $BITCOIND -daemon
 echo -n "⏳ Waiting for node to start"
 until $BITCOIN_CLI getblockchaininfo > /dev/null 2>&1; do
     echo -n "."
-    sleep 0.5
+    sleep 1
 done
 echo " ✅"
+
+# Wait for network to be ready
+echo -n "⏳ Waiting for network connections"
+for i in {1..30}; do
+    if $BITCOIN_CLI getnetworkinfo > /dev/null 2>&1; then
+        echo " ✅"
+        break
+    fi
+    echo -n "."
+    sleep 1
+done
+
+# Additional wait to ensure bitcoind is fully ready
+echo "⏳ Ensuring bitcoind is fully initialized..."
+sleep 5
 
 # === STEP 4: Setup wallet and initial blocks ===
 echo "💼 Setting up wallet..."
@@ -115,6 +159,22 @@ if [ "$BLOCK_COUNT" -lt 101 ]; then
     $BITCOIN_CLI generatetoaddress $(( 101 - BLOCK_COUNT )) "$MINING_ADDRESS" > /dev/null
 else
     echo "✓ Already have $BLOCK_COUNT blocks"
+fi
+
+# Test that getblocktemplate works
+echo "🧪 Testing getblocktemplate..."
+if ! $BITCOIN_CLI getblocktemplate '{"rules":["segwit"]}' > /dev/null 2>&1; then
+    echo "⚠️  getblocktemplate not ready, mining one more block..."
+    $BITCOIN_CLI -rpcwallet=regtestwallet generatetoaddress 1 "$MINING_ADDRESS" > /dev/null
+    sleep 2
+fi
+
+# Final verification
+if $BITCOIN_CLI getblocktemplate '{"rules":["segwit"]}' > /dev/null 2>&1; then
+    echo "✅ Bitcoin node is ready for mining!"
+else
+    echo "❌ Bitcoin node is not ready. Check logs."
+    exit 1
 fi
 
 # === STEP 5: Setup CKPool ===
@@ -249,6 +309,15 @@ if [ "$1" == "stop" ]; then
     echo "🔄 Restarting production services..."
     sudo systemctl start bitcoind 2>/dev/null || echo "bitcoind service not found"
     sudo systemctl start ckpool 2>/dev/null || echo "ckpool service not found"
+    
+    # Optionally remove firewall rules
+    read -p "Remove regtest firewall rules? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        sudo ufw delete allow 18443/tcp 2>/dev/null || true
+        sudo ufw delete allow 18444/tcp 2>/dev/null || true
+        echo "✅ Removed regtest firewall rules"
+    fi
     
     echo "✅ Regtest environment stopped, production services restarted"
     exit 0
