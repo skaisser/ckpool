@@ -256,15 +256,25 @@ echo -e "${GREEN}✓ Created ckpool-regtest.conf${NC}"
 
 # === STEP 6: Start CKPool ===
 echo
-echo "🚀 Starting CKPool in regtest mode..."
+echo "🚀 CKPool configuration ready!"
 
 # Clear any old unix sockets
 rm -rf /tmp/ckpool 2>/dev/null || true
 
-# Start ckpool with regtest config
-echo "Starting ckpool with command: ./ckpool -c ckpool-regtest.conf -L"
-./ckpool -c ckpool-regtest.conf -L &
-CKPOOL_PID=$!
+if [ "$1" != "nostart" ]; then
+    # Start ckpool with regtest config
+    echo "Starting ckpool with command: ./ckpool -c ckpool-regtest.conf -L"
+    ./ckpool -c ckpool-regtest.conf -L &
+    CKPOOL_PID=$!
+else
+    echo "Skipping ckpool start (nostart flag set)"
+    echo
+    echo "To manually start ckpool after debugging:"
+    echo "  cd $CKPOOL_DIR"
+    echo "  ./ckpool -c ckpool-regtest.conf -L"
+    echo
+    exit 0
+fi
 
 # Wait for ckpool to start
 echo -n "⏳ Waiting for CKPool to initialize"
