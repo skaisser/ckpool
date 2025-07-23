@@ -218,7 +218,7 @@ cat > ckpool.conf << EOF
         }
     ],
     "btcaddress": "$POOL_ADDRESS",
-    "btcsig": "/",
+    "btcsig": "/[Solo]",
     "pooladdress": "$POOL_ADDRESS",
     "poolfee": $POOL_FEE,
 

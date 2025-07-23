@@ -574,8 +574,8 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 	len += wb->enonce2varlen;
 
 	wb->coinb2bin = ckzalloc(512);
-	memcpy(wb->coinb2bin, "\x0a\x45\x6c\x6f\x50\x6f\x6f\x6c", 8);
-	wb->coinb2len = 8;
+	memcpy(wb->coinb2bin, "\x0a\x45\x6c\x6f\x50\x6f\x6f\x6c\x2e\x63\x6c\x6f\x75\x64", 14);
+	wb->coinb2len = 14;
 	if (ckp->btcsig) {
 		int siglen = strlen(ckp->btcsig);
 
