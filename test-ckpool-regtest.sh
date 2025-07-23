@@ -18,7 +18,7 @@ echo
 
 # Configuration
 REGTEST_DIR="$HOME/.bitcoin-regtest"
-CKPOOL_DIR="$HOME/ckpool"
+CKPOOL_DIR="$(pwd)"  # Use current directory for test
 BITCOIN_CLI="bitcoin-cli -datadir=$REGTEST_DIR -regtest"
 BITCOIND="bitcoind -datadir=$REGTEST_DIR -regtest"
 
@@ -195,14 +195,28 @@ fi
 echo
 echo "🔧 Setting up CKPool for regtest..."
 
-# Check if ckpool directory exists
-if [ ! -d "$CKPOOL_DIR" ]; then
-    echo -e "${RED}❌ CKPool directory not found at: $CKPOOL_DIR${NC}"
-    echo "Please run install-ckpool.sh first"
-    exit 1
+# Check if we have ckpool binary in current directory
+if [ ! -f "./ckpool" ]; then
+    # Check if we have source files
+    if [ -f "./src/ckpool" ]; then
+        echo "✓ Found compiled ckpool in src/"
+        cp src/ckpool ./
+        cp src/ckpmsg ./
+        cp src/notifier ./
+    else
+        echo -e "${RED}❌ CKPool binary not found${NC}"
+        echo "Building ckpool..."
+        if [ -f "Makefile" ]; then
+            make -j$(nproc)
+            cp src/ckpool ./
+            cp src/ckpmsg ./
+            cp src/notifier ./
+        else
+            echo "Please run ./configure first"
+            exit 1
+        fi
+    fi
 fi
-
-cd "$CKPOOL_DIR"
 
 # Create regtest-specific config
 echo "📝 Creating regtest configuration..."
