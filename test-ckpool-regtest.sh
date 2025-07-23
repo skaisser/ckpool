@@ -93,13 +93,15 @@ server=1
 txindex=1
 rpcuser=$RPC_USER
 rpcpassword=$RPC_PASS
-rpcallowip=127.0.0.1
+rpcbind=127.0.0.1:18443
+rpcallowip=127.0.0.1/32
 rpcport=18443
 port=18444
 fallbackfee=0.00001
 dnsseed=0
 upnp=0
 listen=1
+listenonion=0
 
 # CKPool block notifications
 blocknotify=$CKPOOL_DIR/notifier -s /tmp/ckpool/generator -b %s
@@ -176,6 +178,19 @@ echo "⛏️ Mining one more block for good measure..."
 $BITCOIN_CLI -rpcwallet=regtestwallet generatetoaddress 1 "$MINING_ADDRESS" > /dev/null
 sleep 2
 
+# Debug: Check RPC connection
+echo "🔍 Verifying RPC connection..."
+echo "Testing RPC with credentials: $RPC_USER"
+if curl -s --user "$RPC_USER:$RPC_PASS" --data-binary '{"jsonrpc": "1.0", "id":"test", "method": "getblockchaininfo", "params": [] }' -H 'content-type: text/plain;' http://127.0.0.1:18443/ > /dev/null 2>&1; then
+    echo "✅ RPC connection successful"
+else
+    echo "❌ RPC connection failed"
+    echo "Checking if bitcoind is listening on port 18443..."
+    netstat -tln | grep 18443 || echo "Port 18443 not listening!"
+    echo "Checking bitcoind logs..."
+    tail -20 "$REGTEST_DIR/regtest/debug.log" 2>/dev/null || echo "No debug log found"
+fi
+
 # === STEP 5: Setup CKPool ===
 echo
 echo "🔧 Setting up CKPool for regtest..."
@@ -247,18 +262,32 @@ echo "🚀 Starting CKPool in regtest mode..."
 rm -rf /tmp/ckpool 2>/dev/null || true
 
 # Start ckpool with regtest config
+echo "Starting ckpool with command: ./ckpool -c ckpool-regtest.conf -L"
 ./ckpool -c ckpool-regtest.conf -L &
 CKPOOL_PID=$!
 
 # Wait for ckpool to start
-echo -n "⏳ Waiting for CKPool to start"
-sleep 3
-if ! kill -0 $CKPOOL_PID 2>/dev/null; then
-    echo -e " ${RED}❌ Failed to start${NC}"
-    echo "Check logs-regtest/ckpool.log for errors"
-    exit 1
-fi
-echo " ✅"
+echo -n "⏳ Waiting for CKPool to initialize"
+for i in {1..10}; do
+    sleep 1
+    echo -n "."
+    # Check if process is still running
+    if ! kill -0 $CKPOOL_PID 2>/dev/null; then
+        echo -e " ${RED}❌ CKPool crashed${NC}"
+        echo "Last 20 lines of log:"
+        tail -20 logs-regtest/ckpool.log 2>/dev/null || echo "No log found"
+        exit 1
+    fi
+    # Check if ckpool is ready (unix socket exists)
+    if [ -S "/tmp/ckpool/stratifier" ]; then
+        echo -e " ${GREEN}✅${NC}"
+        break
+    fi
+done
+
+# Additional wait for bitcoind connection
+echo "⏳ Waiting for CKPool to connect to bitcoind..."
+sleep 5
 
 # === STEP 7: Display status ===
 echo
