@@ -1,0 +1,24 @@
+diff --git a/src/stratifier.c b/src/stratifier.c
+index 1234567..abcdefg 100644
+--- a/src/stratifier.c
++++ b/src/stratifier.c
+@@ -8466,6 +8466,7 @@ static void *zmqnotify(void *arg)
+ 	context = zmq_ctx_new();
+ 	subscribers = ckzalloc(sizeof(void *) * num_endpoints);
+ 	poll_items = ckzalloc(sizeof(zmq_pollitem_t) * num_endpoints);
++	LOGNOTICE("Attempting to connect to %d ZMQ endpoints", num_endpoints);
+ 	
+ 	/* Create and connect multiple subscriber sockets */
+ 	for (i = 0; i < num_endpoints; i++) {
+@@ -8500,6 +8501,11 @@ static void *zmqnotify(void *arg)
+ 		poll_items[i].events = ZMQ_POLLIN;
+ 	}
+ 	
++	/* Log summary of connections */
++	int connected_count = 0;
++	for (i = 0; i < num_endpoints; i++)
++		if (subscribers[i]) connected_count++;
++	LOGNOTICE("Successfully connected to %d out of %d ZMQ endpoints", connected_count, num_endpoints);
++	
+ 	/* Main polling loop */
+ 	while (42) {
