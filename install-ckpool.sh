@@ -1,13 +1,12 @@
 #!/bin/bash
 
 # CKPool Standalone Installation Script for Bitcoin Cash
-# Builds from current directory and installs to ~/ckpool directory
-# Usage: Run this script from the cloned ckpool repository
+# Installs to ~/ckpool directory
 
 set -e
 
 echo "======================================"
-echo "EloPool CKPool BCH Production Installer"
+echo "EloPool CkPool BCH      Pool Installer"
 echo "======================================"
 echo
 
@@ -23,60 +22,31 @@ if [ "$EUID" -eq 0 ]; then
    exit 1
 fi
 
-# Save the source directory (where script is run from)
-SOURCE_DIR="$(pwd)"
-
-# Check if we're running from the source directory
-if [ -f "$SOURCE_DIR/configure.ac" ] && [ -f "$SOURCE_DIR/src/ckpool.c" ]; then
-    echo "Running from CKPool source directory: $SOURCE_DIR"
-else
-    echo -e "${RED}Error: This script must be run from the CKPool source directory${NC}"
-    echo "Looking for configure.ac and src/ckpool.c in: $SOURCE_DIR"
-    echo
-    echo "Please make sure you're in the ckpool directory:"
-    echo "  cd ~/my-ckpool"
-    echo "  ./install-ckpool.sh"
-    exit 1
-fi
-
 # Set installation directory
 INSTALL_DIR="$HOME/ckpool"
 echo "Installing CKPool to: $INSTALL_DIR"
 echo
 
-# Install dependencies (if not already installed)
-echo "Checking dependencies..."
-if ! dpkg -l | grep -q "libjansson-dev"; then
-    echo "Installing dependencies..."
-    sudo apt-get update
-    sudo apt-get install -y build-essential autoconf automake libtool \
-        libssl-dev libjansson-dev libcurl4-openssl-dev libgmp-dev \
-        libevent-dev git screen pkg-config jq
-else
-    echo -e "${GREEN}✓ Dependencies already installed${NC}"
-fi
-
-# Stop any running ckpool first
-echo "Stopping any running CKPool instances..."
-if pgrep -x "ckpool" > /dev/null; then
-    pkill -TERM ckpool 2>/dev/null || true
-    sleep 2
-    # Force kill if still running
-    pkill -9 ckpool 2>/dev/null || true
-else
-    echo "No ckpool process running"
-fi
-
-# Clean up old binaries
-echo "Cleaning up old binaries..."
-rm -f "$INSTALL_DIR/ckpool" "$INSTALL_DIR/ckpmsg" "$INSTALL_DIR/notifier" 2>/dev/null || true
-rm -rf "$INSTALL_DIR/build" 2>/dev/null || true
-
-# Create installation directory
+# Create directory
 mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
 
-# Now work in the source directory for building
-cd "$SOURCE_DIR"
+# Install dependencies
+echo "Installing dependencies..."
+sudo apt-get update
+sudo apt-get install -y build-essential autoconf automake libtool \
+    libssl-dev libjansson-dev libcurl4-openssl-dev libgmp-dev \
+    libevent-dev git screen pkg-config jq
+
+# Clone CKPool
+echo
+echo "Cloning CKPool repository..."
+if [ ! -d "ckpool-source" ]; then
+    echo "Cloning from custom CKPool repository with BCH enhancements..."
+    git clone git@github.com:skaisser/ckpool.git ckpool-source --depth 1
+fi
+
+cd ckpool-source
 
 # Fix build issues
 echo
@@ -86,21 +56,16 @@ echo "Preparing build environment..."
 mkdir -p m4
 
 # Clean any previous build attempts
-echo "Cleaning previous build..."
-make distclean 2>/dev/null || true
 make clean 2>/dev/null || true
 rm -f ltmain.sh 2>/dev/null || true
-rm -rf autom4te.cache 2>/dev/null || true
-rm -f config.status config.log 2>/dev/null || true
 
 # Run autoreconf with proper flags
 echo "Running autoreconf..."
 autoreconf -fiv
 
-# Configure with production options
+# Configure
 echo
-echo "Configuring CKPool for production..."
-echo "Note: This build includes EloPool branding"
+echo "Configuring CKPool..."
 ./configure --prefix="$INSTALL_DIR/build"
 
 # Build
@@ -126,16 +91,6 @@ cp src/ckpool "$INSTALL_DIR/" 2>/dev/null || true
 cp src/ckpmsg "$INSTALL_DIR/" 2>/dev/null || true
 cp src/notifier "$INSTALL_DIR/" 2>/dev/null || true
 
-# Clean up build artifacts from source directory
-echo "Cleaning up build artifacts..."
-rm -f "$SOURCE_DIR/ckpool" "$SOURCE_DIR/ckpmsg" "$SOURCE_DIR/notifier" 2>/dev/null || true
-rm -f "$SOURCE_DIR/test-driver" 2>/dev/null || true
-
-# Show binary timestamp to verify it's fresh
-echo
-echo "Binary build timestamp:"
-ls -la "$INSTALL_DIR/ckpool" | awk '{print $6, $7, $8}'
-
 # Go back to main directory
 cd "$INSTALL_DIR"
 
@@ -153,19 +108,6 @@ chmod 755 logs users pool data
 
 # Copy binaries to main directory for easy access
 cp build/bin/* . 2>/dev/null || true
-
-# Create symlinks for easy access
-echo "Creating symlinks for system-wide access..."
-sudo ln -sf "$INSTALL_DIR/ckpmsg" /usr/local/bin/ckpmsg 2>/dev/null || true
-sudo ln -sf "$INSTALL_DIR/ckpool" /usr/local/bin/ckpool 2>/dev/null || true
-sudo ln -sf "$INSTALL_DIR/notifier" /usr/local/bin/notifier 2>/dev/null || true
-
-# Verify symlinks
-if [ -L "/usr/local/bin/ckpmsg" ]; then
-    echo -e "${GREEN}✓ Created symlink for ckpmsg${NC}"
-else
-    echo -e "${YELLOW}! Could not create symlink for ckpmsg (may need sudo)${NC}"
-fi
 
 echo
 echo -e "${GREEN}✓ CKPool installed successfully!${NC}"
@@ -186,64 +128,56 @@ echo
 read -p "Enter your pool's BCH address (for fees): " POOL_ADDRESS
 read -p "Enter pool fee percentage (e.g., 1 for 1%): " POOL_FEE
 
-# Get RPC credentials from bitcoin.conf if available
-if [ -f "$HOME/.bitcoin/bitcoin.conf" ]; then
-    RPC_USER=$(grep "^rpcuser=" "$HOME/.bitcoin/bitcoin.conf" | cut -d'=' -f2)
-    RPC_PASS=$(grep "^rpcpassword=" "$HOME/.bitcoin/bitcoin.conf" | cut -d'=' -f2)
-    if [ -n "$RPC_USER" ] && [ -n "$RPC_PASS" ]; then
-        echo -e "${GREEN}✓ Found RPC credentials in bitcoin.conf${NC}"
-        echo "  Username: $RPC_USER"
-    else
-        echo -e "${YELLOW}! No RPC credentials found in bitcoin.conf${NC}"
-        echo "Please run the BCH node installer first or add credentials manually"
-        exit 1
-    fi
-else
-    echo -e "${YELLOW}! No bitcoin.conf found${NC}"
-    echo "Please install Bitcoin Cash Node first:"
-    echo "  cd ../bchn"
-    echo "  ./install-bch-node-stable.sh"
-    exit 1
-fi
+# Default RPC placeholders for multi-node setup
+echo
+echo -e "${YELLOW}Note: This config supports multiple BCH nodes.${NC}"
+echo "You'll need to edit the RPC credentials and IPs in ckpool.conf"
+echo "after installation to match your BCH nodes."
 
 # Create ckpool configuration
 cat > ckpool.conf << EOF
 {
     "btcd": [
         {
-            "url": "127.0.0.1:8332",
-            "auth": "$RPC_USER",
-            "pass": "$RPC_PASS",
-            "notify": true
+            "url": "CHANGE_ME_NODE1_IP:8332",
+            "auth": "CHANGE_ME_RPC_USER",
+            "pass": "CHANGE_ME_RPC_PASS",
+            "notify": true,
+            "zmqnotify": "tcp://CHANGE_ME_NODE1_IP:28333"
+        },
+        {
+            "url": "CHANGE_ME_NODE2_IP:8332",
+            "auth": "CHANGE_ME_RPC_USER",
+            "pass": "CHANGE_ME_RPC_PASS",
+            "notify": true,
+            "zmqnotify": "tcp://CHANGE_ME_NODE2_IP:28333"
         }
     ],
     "btcaddress": "$POOL_ADDRESS",
     "btcsig": "/[Solo]",
     "pooladdress": "$POOL_ADDRESS",
     "poolfee": $POOL_FEE,
-
-    "blockpoll": 100,
-    "update_interval": 30,
+    "blockpoll": 50,
+    "update_interval": 15,
     "serverurl": [
         "0.0.0.0:3333"
     ],
-
+    "logdir": "logs",
+    "node_warning": false,
+    "log_shares": true,
+    "asicboost": true,
+    "version_mask": "1fffe000",
+    "maxclients": 10000,
     "mindiff": 500000,
     "startdiff": 500000,
     "maxdiff": 1000000,
-    "logdir": "logs",
-
-    "stratum_port": 3333,
-    "node_warning": false,
-    "log_shares": true,
-
-    "asicboost": true,
-    "version_mask": "1fffe000",
-
-    "connector": {
-        "bind": "0.0.0.0:3333",
-        "bind_address": "0.0.0.0",
-        "port": 3333
+    "ports": {
+        "3333": {
+            "mindiff": 500000,
+            "startdiff": 500000,
+            "maxdiff": 1000000,
+            "client_timeout": 1200
+        }
     }
 }
 EOF
@@ -254,7 +188,7 @@ echo -e "${GREEN}✓ Created ckpool.conf${NC}"
 cat > start-ckpool.sh << 'EOF'
 #!/bin/bash
 
-# Start CKPool Production
+# Start CKPool
 echo "Starting CKPool..."
 
 # Check if ckpool is already running
@@ -265,9 +199,6 @@ fi
 
 # Ensure we're in the right directory
 cd "$(dirname "$0")"
-
-# Clear any old unix sockets
-rm -rf /tmp/ckpool 2>/dev/null || true
 
 # Start ckpool
 ./ckpool -c ckpool.conf -L
@@ -282,7 +213,7 @@ chmod +x start-ckpool.sh
 cat > stop-ckpool.sh << 'EOF'
 #!/bin/bash
 
-# Stop CKPool Production
+# Stop CKPool
 echo "Stopping CKPool..."
 
 # Send SIGTERM to ckpool
@@ -295,9 +226,6 @@ if pgrep -x "ckpool" > /dev/null; then
     echo "CKPool still running, force stopping..."
     pkill -9 ckpool
 fi
-
-# Clean up unix sockets
-rm -rf /tmp/ckpool 2>/dev/null || true
 
 echo "CKPool stopped."
 EOF
@@ -322,42 +250,11 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-# Configure blocknotify in bitcoin.conf
+# Note about ZMQ vs blocknotify
 echo
-echo "Configuring Bitcoin Cash Node blocknotify..."
-if [ -f "$HOME/.bitcoin/bitcoin.conf" ]; then
-    # Check if blocknotify already exists
-    if grep -q "blocknotify=" "$HOME/.bitcoin/bitcoin.conf"; then
-        echo -e "${YELLOW}! blocknotify already configured in bitcoin.conf${NC}"
-        echo "Current setting:"
-        grep "blocknotify=" "$HOME/.bitcoin/bitcoin.conf"
-        echo
-        read -p "Replace with CKPool notifier? (y/n): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            # Comment out old blocknotify
-            sed -i 's/^blocknotify=/#blocknotify=/' "$HOME/.bitcoin/bitcoin.conf"
-            # Add new blocknotify
-            echo "blocknotify=$INSTALL_DIR/notifier -s /tmp/ckpool/generator -b %s" >> "$HOME/.bitcoin/bitcoin.conf"
-            echo -e "${GREEN}✓ Updated blocknotify configuration${NC}"
-        fi
-    else
-        # Add blocknotify
-        echo "" >> "$HOME/.bitcoin/bitcoin.conf"
-        echo "# CKPool block notifications" >> "$HOME/.bitcoin/bitcoin.conf"
-        echo "blocknotify=$INSTALL_DIR/notifier -s /tmp/ckpool/generator -b %s" >> "$HOME/.bitcoin/bitcoin.conf"
-        echo -e "${GREEN}✓ Added blocknotify configuration${NC}"
-    fi
-
-    echo
-    echo -e "${YELLOW}NOTE: Restart bitcoind for blocknotify changes to take effect:${NC}"
-    echo "  bitcoin-cli stop"
-    echo "  bitcoind -daemon"
-else
-    echo -e "${YELLOW}! bitcoin.conf not found${NC}"
-    echo "Add this line to your bitcoin.conf:"
-    echo "  blocknotify=$INSTALL_DIR/notifier -s /tmp/ckpool/generator -b %s"
-fi
+echo -e "${GREEN}✓ Using ZMQ for block notifications${NC}"
+echo "This pool uses ZMQ instead of blocknotify for faster block detection."
+echo "Make sure your BCH nodes have ZMQ enabled in their bitcoin.conf."
 
 echo
 echo "======================================"
@@ -371,6 +268,11 @@ echo "  - Pool Address: $POOL_ADDRESS"
 echo "  - Pool Fee: $POOL_FEE%"
 echo "  - Stratum Port: 3333"
 echo "  - ASICBoost: Enabled"
+echo "  - Min Difficulty: 500,000 (ASIC optimized)"
+echo "  - Start Difficulty: 500,000"
+echo "  - Max Difficulty: 1,000,000"
+echo "  - Multi-Node Support: Enabled (2 nodes)"
+echo "  - ZMQ Support: Enabled"
 echo
 echo "To start the pool:"
 echo "  cd ~/ckpool"
@@ -389,17 +291,15 @@ echo
 echo "Monitor logs:"
 echo "  tail -f ~/ckpool/logs/ckpool.log"
 echo
-echo "Query pool stats with ckpmsg:"
-echo "  ckpmsg -s /tmp/ckpool/stratifier stats"
-echo "  ckpmsg -s /tmp/ckpool/stratifier users"
-echo "  ckpmsg -s /tmp/ckpool/stratifier workers"
+echo -e "${YELLOW}IMPORTANT: Before starting the pool:${NC}"
+echo "1. Edit ~/ckpool/ckpool.conf and replace:"
+echo "   - CHANGE_ME_NODE1_IP with your first BCH node IP"
+echo "   - CHANGE_ME_NODE2_IP with your second BCH node IP"
+echo "   - CHANGE_ME_RPC_USER with your RPC username"
+echo "   - CHANGE_ME_RPC_PASS with your RPC password"
 echo
-echo "See API documentation: CKPOOL_API_GUIDE.md"
+echo "2. Ensure your BCH nodes have ZMQ enabled:"
+echo "   zmqpubhashblock=tcp://0.0.0.0:28333"
 echo
 echo "Note: CKPool will create user share logs in ~/ckpool/users/"
 echo "tracking shares by username for your external payment system."
-echo
-echo "Coinbase Messages:"
-echo "  - Blocks will show: 'EloPool/' in the coinbase"
-echo "  - The hardcoded 'ckpool' prefix has been replaced with 'EloPool'"
-echo "  - For username-based messages, enable btcsolo mode in config"

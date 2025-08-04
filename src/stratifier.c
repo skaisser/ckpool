@@ -8444,67 +8444,130 @@ static void *zmqnotify(void *arg)
 #ifdef HAVE_ZMQ_H
 	ckpool_t *ckp = arg;
 	sdata_t *sdata = ckp->sdata;
-	void *context, *notify;
-	int rc;
-
+	void *context;
+	void **subscribers;
+	zmq_pollitem_t *poll_items;
+	int num_endpoints, i, rc;
+	
 	rename_proc("zmqnotify");
-
-	context = zmq_ctx_new();
-	notify = zmq_socket(context, ZMQ_SUB);
-	if (!notify)
-		quit(1, "zmq_socket failed with errno %d", errno);
-	rc = zmq_setsockopt(notify, ZMQ_SUBSCRIBE, "hashblock", 0);
-	if (rc < 0)
-		quit(1, "zmq_setsockopt failed with errno %d", errno);
-	rc = zmq_connect(notify, ckp->zmqblock);
-	if (rc < 0)
-		quit(1, "zmq_connect failed with errno %d", errno);
-	LOGNOTICE("ZMQ connected to %s", ckp->zmqblock);
-
-	while (42) {
-		zmq_msg_t message;
-
-		do {
-			char hexhash[68] = {};
-			int size;
-
-			zmq_msg_init(&message);
-			rc = zmq_msg_recv(&message, notify, 0);
-			if (unlikely(rc < 0)) {
-				LOGWARNING("zmq_msg_recv failed with error %d", errno);
-				sleep(5);
-				zmq_msg_close(&message);
-				continue;
-			}
-
-			size = zmq_msg_size(&message);
-			switch (size) {
-				case 9:
-					LOGDEBUG("ZMQ hashblock message");
-					break;
-				case 4:
-					LOGDEBUG("ZMQ sequence number");
-					break;
-				case 32:
-					update_base(sdata, GEN_PRIORITY);
-					__bin2hex(hexhash, zmq_msg_data(&message), 32);
-					LOGNOTICE("ZMQ block hash %s", hexhash);
-					break;
-				default:
-					LOGWARNING("ZMQ message size error, size = %d!", size);
-					break;
-			}
-			zmq_msg_close(&message);
-		} while (zmq_msg_more(&message));
-
-		LOGDEBUG("ZMQ message complete");
+	
+	/* Determine number of endpoints to connect to */
+	if (ckp->btcdzmq_count > 0) {
+		num_endpoints = ckp->btcdzmq_count;
+		LOGNOTICE("Connecting to %d ZMQ endpoints from btcd config", num_endpoints);
+	} else if (ckp->zmqblock) {
+		num_endpoints = 1;
+		LOGNOTICE("Using single ZMQ endpoint: %s", ckp->zmqblock);
+	} else {
+		LOGERR("No ZMQ endpoints configured");
+		goto out;
 	}
-
-	zmq_close(notify);
-	zmq_ctx_destroy (context);
+	
+	context = zmq_ctx_new();
+	subscribers = ckzalloc(sizeof(void *) * num_endpoints);
+	poll_items = ckzalloc(sizeof(zmq_pollitem_t) * num_endpoints);
+	
+	/* Create and connect multiple subscriber sockets */
+	for (i = 0; i < num_endpoints; i++) {
+		const char *endpoint = (ckp->btcdzmq_count > 0) ? 
+		                       ckp->btcdzmq[i] : ckp->zmqblock;
+		
+		subscribers[i] = zmq_socket(context, ZMQ_SUB);
+		if (!subscribers[i]) {
+			LOGERR("zmq_socket failed for endpoint %d with errno %d", i, errno);
+			continue;
+		}
+		
+		rc = zmq_setsockopt(subscribers[i], ZMQ_SUBSCRIBE, "hashblock", 0);
+		if (rc < 0) {
+			LOGERR("zmq_setsockopt failed for endpoint %d with errno %d", i, errno);
+			zmq_close(subscribers[i]);
+			subscribers[i] = NULL;
+			continue;
+		}
+		
+		rc = zmq_connect(subscribers[i], endpoint);
+		if (rc < 0) {
+			LOGERR("zmq_connect to %s failed with errno %d", endpoint, errno);
+			zmq_close(subscribers[i]);
+			subscribers[i] = NULL;
+			continue;
+		}
+		
+		LOGNOTICE("ZMQ connected to endpoint %d: %s", i, endpoint);
+		
+		poll_items[i].socket = subscribers[i];
+		poll_items[i].events = ZMQ_POLLIN;
+	}
+	
+	/* Main polling loop */
+	while (42) {
+		rc = zmq_poll(poll_items, num_endpoints, -1);  /* Block indefinitely */
+		
+		if (rc < 0) {
+			LOGWARNING("zmq_poll failed with error %d", errno);
+			sleep(1);
+			continue;
+		}
+		
+		/* Check which socket(s) have data */
+		for (i = 0; i < num_endpoints; i++) {
+			if (!subscribers[i])
+				continue;
+				
+			if (poll_items[i].revents & ZMQ_POLLIN) {
+				zmq_msg_t message;
+				char hexhash[68] = {};
+				int size;
+				
+				do {
+					zmq_msg_init(&message);
+					rc = zmq_msg_recv(&message, subscribers[i], 0);
+					
+					if (rc < 0) {
+						LOGWARNING("zmq_msg_recv from endpoint %d failed with error %d", 
+						          i, errno);
+						zmq_msg_close(&message);
+						break;
+					}
+					
+					size = zmq_msg_size(&message);
+					switch (size) {
+						case 9:
+							LOGDEBUG("ZMQ hashblock message from endpoint %d", i);
+							break;
+						case 4:
+							LOGDEBUG("ZMQ sequence number from endpoint %d", i);
+							break;
+						case 32:
+							update_base(sdata, GEN_PRIORITY);
+							__bin2hex(hexhash, zmq_msg_data(&message), 32);
+							LOGNOTICE("ZMQ block hash %s from endpoint %d", hexhash, i);
+							break;
+						default:
+							LOGWARNING("ZMQ message size error from endpoint %d, size = %d", 
+							          i, size);
+							break;
+					}
+					zmq_msg_close(&message);
+				} while (zmq_msg_more(&message));
+			}
+		}
+	}
+	
+	/* Cleanup (never reached in normal operation) */
+	for (i = 0; i < num_endpoints; i++) {
+		if (subscribers[i])
+			zmq_close(subscribers[i]);
+	}
+	free(subscribers);
+	free(poll_items);
+	zmq_ctx_destroy(context);
+	
+out:
 #endif
 	pthread_detach(pthread_self());
-
+	
 	return NULL;
 }
 

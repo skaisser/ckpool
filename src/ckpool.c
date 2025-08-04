@@ -1262,12 +1262,22 @@ static void parse_btcds(ckpool_t *ckp, const json_t *arr_val, const int arr_size
 	ckp->btcdauth = ckzalloc(sizeof(char *) * arr_size);
 	ckp->btcdpass = ckzalloc(sizeof(char *) * arr_size);
 	ckp->btcdnotify = ckzalloc(sizeof(bool *) * arr_size);
+	ckp->btcdzmq = ckzalloc(sizeof(char *) * arr_size);
+	ckp->btcdzmq_count = 0;
+	
 	for (i = 0; i < arr_size; i++) {
 		val = json_array_get(arr_val, i);
 		json_get_configstring(&ckp->btcdurl[i], val, "url");
 		json_get_configstring(&ckp->btcdauth[i], val, "auth");
 		json_get_configstring(&ckp->btcdpass[i], val, "pass");
 		json_get_bool(&ckp->btcdnotify[i], val, "notify");
+		
+		/* Extract ZMQ endpoint if present */
+		if (json_get_string(&ckp->btcdzmq[ckp->btcdzmq_count], val, "zmqnotify")) {
+			LOGNOTICE("Added ZMQ endpoint %d: %s", ckp->btcdzmq_count, 
+				  ckp->btcdzmq[ckp->btcdzmq_count]);
+			ckp->btcdzmq_count++;
+		}
 	}
 }
 

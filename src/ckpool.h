@@ -226,6 +226,8 @@ struct ckpool_instance {
 	char **btcdauth;
 	char **btcdpass;
 	bool *btcdnotify;
+	char **btcdzmq;      // ZMQ endpoints for each btcd server
+	int btcdzmq_count;   // Number of configured ZMQ endpoints
 	int blockpoll; // How frequently in ms to poll bitcoind for block updates
 	int nonce1length; // Extranonce1 length
 	int nonce2length; // Extranonce2 length
