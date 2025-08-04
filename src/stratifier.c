@@ -8478,7 +8478,8 @@ static void *zmqnotify(void *arg)
 			continue;
 		}
 		
-		rc = zmq_setsockopt(subscribers[i], ZMQ_SUBSCRIBE, "hashblock", 0);
+		/* Subscribe to hashblock topic - need to pass correct length */
+		rc = zmq_setsockopt(subscribers[i], ZMQ_SUBSCRIBE, "hashblock", 9);
 		if (rc < 0) {
 			LOGERR("zmq_setsockopt failed for endpoint %d with errno %d", i, errno);
 			zmq_close(subscribers[i]);
