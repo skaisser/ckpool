@@ -1485,7 +1485,7 @@ static void parse_config(ckpool_t *ckp)
 	arr_val = json_object_get(json_conf, "mindiff_overrides");
 	if (arr_val && json_is_object(arr_val)) {
 		ckp->mindiff_overrides = json_incref(arr_val);
-		LOGINFO("Loaded %d mindiff override patterns", json_object_size(arr_val));
+		LOGINFO("Loaded %ld mindiff override patterns", (long)json_object_size(arr_val));
 	}
 
 	json_get_string(&ckp->logdir, json_conf, "logdir");
