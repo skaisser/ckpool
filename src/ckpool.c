@@ -1480,6 +1480,14 @@ static void parse_config(ckpool_t *ckp)
 	json_get_int64(&ckp->startdiff, json_conf, "startdiff");
 	json_get_int64(&ckp->highdiff, json_conf, "highdiff");
 	json_get_int64(&ckp->maxdiff, json_conf, "maxdiff");
+
+	/* Parse mindiff_overrides object if present */
+	arr_val = json_object_get(json_conf, "mindiff_overrides");
+	if (arr_val && json_is_object(arr_val)) {
+		ckp->mindiff_overrides = json_incref(arr_val);
+		LOGINFO("Loaded %d mindiff override patterns", json_object_size(arr_val));
+	}
+
 	json_get_string(&ckp->logdir, json_conf, "logdir");
 	json_get_int(&ckp->maxclients, json_conf, "maxclients");
 	json_get_double(&ckp->donation, json_conf, "donation");

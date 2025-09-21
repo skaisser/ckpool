@@ -238,6 +238,9 @@ struct ckpool_instance {
 	int64_t highdiff; // Default 1000000
 	int64_t maxdiff; // No default
 
+	/* Difficulty overrides for specific worker patterns */
+	json_t *mindiff_overrides; // JSON object mapping patterns to mindiff values
+
 	/* Coinbase data */
 	char *btcaddress; // Address to mine to
 	bool script; // Address is a script address

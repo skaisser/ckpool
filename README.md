@@ -17,6 +17,11 @@
   - Redundant block notifications (failover support)
   - Faster block detection (milliseconds vs polling)
   - Load distribution across nodes
+- **Multi-Difficulty Support** 🆕
+  - Single port operation with per-miner difficulty
+  - Password-based difficulty setting (`-p d=1000` or `-p diff=1000000`)
+  - Automatic difficulty for rental services via mindiff_overrides
+  - Pattern-based worker name matching
 - **Bitcoin Cash Optimizations**
   - SegWit removed for BCH compatibility
   - Optimized for ASIC miners (500k+ difficulty)
@@ -69,6 +74,24 @@ The `btcsig` parameter controls the **entire** coinbase message that appears in 
 - `"btcsig": "PoolName/[Solo]"` → Coinbase shows: `PoolName/[Solo]`
 - `"btcsig": "/[Solo]"` → Coinbase shows: `/[Solo]`
 - `"btcsig": ""` → No coinbase message
+
+### Multi-Difficulty Settings
+
+Configure automatic difficulty per worker pattern using `mindiff_overrides`:
+
+```json
+"mindiff_overrides": {
+    "nicehash": 500000,      // Workers with "nicehash" in name
+    "MiningRigRentals": 1000000,  // Mining rental services
+    "bitaxe": 1000,          // Low-power miners
+    "stratum-proxy": 10000   // Proxy connections
+}
+```
+
+Miners can also set difficulty via password:
+- `-p d=1000` - Short format
+- `-p diff=1000000` - Long format
+- Password difficulty overrides all other settings
 
 ### Basic Configuration (Single Node)
 

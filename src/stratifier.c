@@ -5410,6 +5410,20 @@ static void client_auth(ckpool_t *ckp, stratum_instance_t *client, user_instance
 	if (ret) {
 		client->authorised = ret;
 		user->authorised = ret;
+
+		/* Apply the suggested difficulty if set via password or mindiff_overrides */
+		if (client->suggest_diff > 0) {
+			/* Ensure suggest_diff is at least mindiff and not more than maxdiff */
+			if (ckp->mindiff && client->suggest_diff < ckp->mindiff)
+				client->suggest_diff = ckp->mindiff;
+			if (ckp->maxdiff && client->suggest_diff > ckp->maxdiff)
+				client->suggest_diff = ckp->maxdiff;
+
+			client->diff = client->old_diff = client->suggest_diff;
+			LOGINFO("Applied difficulty %ld for client %s worker %s",
+				client->diff, client->identity, client->workername);
+		}
+
 		if (ckp->proxy) {
 			LOGNOTICE("Authorised client %s to proxy %d:%d, worker %s as user %s",
 				  client->identity, client->proxyid, client->subproxyid,
@@ -5506,9 +5520,48 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 	/* NOTE workername is NULL prior to this so should not be used in code
 	 * till after this point */
 	client->workername = strdup(buf);
-	if (pass)
+
+	/* Check for mindiff overrides based on workername patterns */
+	if (ckp->mindiff_overrides && json_is_object(ckp->mindiff_overrides)) {
+		const char *pattern;
+		json_t *diff_val;
+
+		json_object_foreach(ckp->mindiff_overrides, pattern, diff_val) {
+			/* Case-insensitive substring match for worker patterns */
+			if (strcasestr(client->workername, pattern)) {
+				int64_t override_diff = json_integer_value(diff_val);
+				if (override_diff > 0) {
+					client->suggest_diff = override_diff;
+					LOGINFO("Client %s matched pattern '%s', setting mindiff to %ld",
+						client->identity, pattern, override_diff);
+					break;  /* Use first matching pattern */
+				}
+			}
+		}
+	}
+
+	if (pass) {
 		client->password = strndup(pass, 64);
-	else
+
+		/* Parse password-based difficulty settings like "d=1000" or "diff=1000000" */
+		const char *diff_str = strstr(pass, "diff=");
+		if (!diff_str)
+			diff_str = strstr(pass, "d=");
+
+		if (diff_str) {
+			int64_t suggest_diff = 0;
+			if (diff_str[1] == '=') /* d= format */
+				suggest_diff = strtoll(diff_str + 2, NULL, 10);
+			else /* diff= format */
+				suggest_diff = strtoll(diff_str + 5, NULL, 10);
+
+			if (suggest_diff > 0) {
+				client->suggest_diff = suggest_diff;
+				LOGINFO("Client %s set difficulty to %ld via password",
+					client->identity, suggest_diff);
+			}
+		}
+	} else
 		client->password = strdup("");
 	if (user->failed_authtime) {
 		time_t now_t = time(NULL);
