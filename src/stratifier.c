@@ -5557,12 +5557,35 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 
 			if (suggest_diff > 0) {
 				client->suggest_diff = suggest_diff;
-				LOGINFO("Client %s set difficulty to %ld via password",
+				/* Apply difficulty immediately for NiceHash compatibility */
+				if (ckp->mindiff && suggest_diff < ckp->mindiff)
+					suggest_diff = ckp->mindiff;
+				if (ckp->maxdiff && suggest_diff > ckp->maxdiff)
+					suggest_diff = ckp->maxdiff;
+				client->diff = client->old_diff = suggest_diff;
+				LOGINFO("Client %s set difficulty to %ld via password (applied immediately)",
 					client->identity, suggest_diff);
 			}
 		}
 	} else
 		client->password = strdup("");
+
+	/* Apply mindiff_overrides difficulty immediately if no password diff was set */
+	if (client->suggest_diff > 0 && client->diff < client->suggest_diff) {
+		int64_t suggest_diff = client->suggest_diff;
+		if (ckp->mindiff && suggest_diff < ckp->mindiff)
+			suggest_diff = ckp->mindiff;
+		if (ckp->maxdiff && suggest_diff > ckp->maxdiff)
+			suggest_diff = ckp->maxdiff;
+		client->diff = client->old_diff = suggest_diff;
+		LOGINFO("Applied override difficulty %ld for client %s", suggest_diff, client->identity);
+	}
+
+	/* Ensure client has a valid difficulty set - use startdiff if nothing was set */
+	if (client->diff == 0) {
+		client->diff = client->old_diff = ckp->startdiff;
+		LOGINFO("Client %s using default startdiff %ld", client->identity, client->diff);
+	}
 	if (user->failed_authtime) {
 		time_t now_t = time(NULL);
 
@@ -7755,6 +7778,15 @@ static void sauth_process(ckpool_t *ckp, json_params_t *jp)
 	send_auth_response(sdata, client_id, ret, jp->id_val, err_val);
 	if (!ret)
 		goto out;
+
+	/* Send difficulty notification immediately after successful authorization
+	 * This is critical for NiceHash and other pools that expect difficulty
+	 * to be sent right after authorization response */
+	if (client->diff > 0) {
+		stratum_send_diff(sdata, client);
+		LOGINFO("Sent initial difficulty %ld to client %s after authorization",
+			client->diff, client->identity);
+	}
 
 	if (client->remote) {
 		/* We don't need to keep a record of clients on remote trusted
