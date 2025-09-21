@@ -5411,18 +5411,10 @@ static void client_auth(ckpool_t *ckp, stratum_instance_t *client, user_instance
 		client->authorised = ret;
 		user->authorised = ret;
 
-		/* Apply the suggested difficulty if set via password or mindiff_overrides */
-		if (client->suggest_diff > 0) {
-			/* Ensure suggest_diff is at least mindiff and not more than maxdiff */
-			if (ckp->mindiff && client->suggest_diff < ckp->mindiff)
-				client->suggest_diff = ckp->mindiff;
-			if (ckp->maxdiff && client->suggest_diff > ckp->maxdiff)
-				client->suggest_diff = ckp->maxdiff;
-
-			client->diff = client->old_diff = client->suggest_diff;
-			LOGINFO("Applied difficulty %ld for client %s worker %s",
-				client->diff, client->identity, client->workername);
-		}
+		/* Difficulty has already been set in parse_authorise for NiceHash compatibility.
+		 * Log the current difficulty for debugging */
+		LOGINFO("Client %s worker %s authorized with difficulty %ld",
+			client->identity, client->workername, client->diff);
 
 		if (ckp->proxy) {
 			LOGNOTICE("Authorised client %s to proxy %d:%d, worker %s as user %s",
@@ -5521,7 +5513,7 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 	 * till after this point */
 	client->workername = strdup(buf);
 
-	/* Check for mindiff overrides based on workername patterns */
+	/* First check for mindiff overrides based on workername patterns */
 	if (ckp->mindiff_overrides && json_is_object(ckp->mindiff_overrides)) {
 		const char *pattern;
 		json_t *diff_val;
@@ -5532,8 +5524,10 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 				int64_t override_diff = json_integer_value(diff_val);
 				if (override_diff > 0) {
 					client->suggest_diff = override_diff;
-					LOGINFO("Client %s matched pattern '%s', setting mindiff to %ld",
-						client->identity, pattern, override_diff);
+					/* Apply immediately for NiceHash compatibility */
+					client->diff = client->old_diff = override_diff;
+					LOGINFO("Client %s workername '%s' matched pattern '%s', applied difficulty %ld",
+						client->identity, client->workername, pattern, override_diff);
 					break;  /* Use first matching pattern */
 				}
 			}
@@ -5543,49 +5537,44 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 	if (pass) {
 		client->password = strndup(pass, 64);
 
-		/* Parse password-based difficulty settings like "d=1000" or "diff=1000000" */
+		/* Parse password-based difficulty settings like "d=1000" or "diff=1000000"
+		 * Password difficulty OVERRIDES any pattern-based difficulty */
 		const char *diff_str = strstr(pass, "diff=");
 		if (!diff_str)
 			diff_str = strstr(pass, "d=");
 
 		if (diff_str) {
-			int64_t suggest_diff = 0;
+			int64_t password_diff = 0;
 			if (diff_str[1] == '=') /* d= format */
-				suggest_diff = strtoll(diff_str + 2, NULL, 10);
+				password_diff = strtoll(diff_str + 2, NULL, 10);
 			else /* diff= format */
-				suggest_diff = strtoll(diff_str + 5, NULL, 10);
+				password_diff = strtoll(diff_str + 5, NULL, 10);
 
-			if (suggest_diff > 0) {
-				client->suggest_diff = suggest_diff;
-				/* Apply difficulty immediately for NiceHash compatibility */
-				if (ckp->mindiff && suggest_diff < ckp->mindiff)
-					suggest_diff = ckp->mindiff;
-				if (ckp->maxdiff && suggest_diff > ckp->maxdiff)
-					suggest_diff = ckp->maxdiff;
-				client->diff = client->old_diff = suggest_diff;
-				LOGINFO("Client %s set difficulty to %ld via password (applied immediately)",
-					client->identity, suggest_diff);
+			if (password_diff > 0) {
+				/* Password difficulty overrides pattern-based difficulty */
+				client->suggest_diff = password_diff;
+
+				/* Apply mindiff/maxdiff limits */
+				if (ckp->mindiff && password_diff < ckp->mindiff)
+					password_diff = ckp->mindiff;
+				if (ckp->maxdiff && password_diff > ckp->maxdiff)
+					password_diff = ckp->maxdiff;
+
+				/* Apply immediately for NiceHash compatibility */
+				client->diff = client->old_diff = password_diff;
+				LOGINFO("Client %s set difficulty to %ld via password (overrides pattern)",
+					client->identity, password_diff);
 			}
 		}
 	} else
 		client->password = strdup("");
-
-	/* Apply mindiff_overrides difficulty immediately if no password diff was set */
-	if (client->suggest_diff > 0 && client->diff < client->suggest_diff) {
-		int64_t suggest_diff = client->suggest_diff;
-		if (ckp->mindiff && suggest_diff < ckp->mindiff)
-			suggest_diff = ckp->mindiff;
-		if (ckp->maxdiff && suggest_diff > ckp->maxdiff)
-			suggest_diff = ckp->maxdiff;
-		client->diff = client->old_diff = suggest_diff;
-		LOGINFO("Applied override difficulty %ld for client %s", suggest_diff, client->identity);
-	}
 
 	/* Ensure client has a valid difficulty set - use startdiff if nothing was set */
 	if (client->diff == 0) {
 		client->diff = client->old_diff = ckp->startdiff;
 		LOGINFO("Client %s using default startdiff %ld", client->identity, client->diff);
 	}
+
 	if (user->failed_authtime) {
 		time_t now_t = time(NULL);
 
@@ -7795,19 +7784,11 @@ static void sauth_process(ckpool_t *ckp, json_params_t *jp)
 		goto out;
 	}
 
-	/* Update the client now if they have set a valid mindiff different
-	 * from the startdiff. suggest_diff overrides worker mindiff */
-	if (client->suggest_diff)
-		mindiff = client->suggest_diff;
-	else
-		mindiff = client->worker_instance->mindiff;
-	if (mindiff) {
-		mindiff = MAX(ckp->mindiff, mindiff);
-		if (mindiff != client->diff) {
-			client->diff = mindiff;
-			stratum_send_diff(sdata, client);
-		}
-	}
+	/* Difficulty has already been set and sent in parse_authorise and immediately
+	 * after auth response for NiceHash compatibility. We don't need to update it again
+	 * here as it would override password-based and pattern-based settings. */
+	LOGDEBUG("Client %s already has difficulty %ld set from authorization",
+		client->identity, client->diff);
 
 out:
 	dec_instance_ref(sdata, client);
