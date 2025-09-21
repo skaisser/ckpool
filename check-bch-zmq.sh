@@ -28,7 +28,8 @@ echo
 # Extract BCH node IPs and ZMQ ports from config
 # Using jq if available, otherwise fall back to sed/awk
 if command -v jq &> /dev/null; then
-    NODES=$(jq -r '.btcd[]? | "\(.url | split(":")[0]):\(.zmqnotify | split(":")[2] | split("/")[2])"' "$CONF_FILE" 2>/dev/null)
+    # Parse zmqnotify like "tcp://10.12.112.3:28333" to get IP and port
+    NODES=$(jq -r '.btcd[]? | "\(.url | split(":")[0]):\(.zmqnotify | split("//")[1] | split(":")[1])"' "$CONF_FILE" 2>/dev/null)
 else
     # Fallback to sed/awk parsing
     NODES=$(sed -n '/btcd.*\[/,/\]/p' "$CONF_FILE" | grep -E '"url"|"zmqnotify"' | paste -d' ' - - | sed 's/.*"url"[^"]*"//;s/".*"zmqnotify"[^/]*\/\///;s/".*//' | awk -F: '{print $1":"$4}')
