@@ -20,7 +20,7 @@
 - **Bitcoin Cash Optimizations**
   - SegWit removed for BCH compatibility
   - Optimized for ASIC miners (500k+ difficulty)
-  - Custom BCH coinbase signatures
+  - Fully configurable coinbase signatures (no hardcoded text)
 - **Production-Ready Configuration**
   - Pre-configured for high-performance ASIC mining
   - Comprehensive logging and monitoring
@@ -60,6 +60,16 @@ cd ckpool
 
 ## ⚙️ Configuration
 
+### Coinbase Message (btcsig)
+
+The `btcsig` parameter controls the **entire** coinbase message that appears in mined blocks. There is no hardcoded text - whatever you set in `btcsig` is exactly what will appear in the blockchain.
+
+**Examples:**
+- `"btcsig": "MyPool.com"` → Coinbase shows: `MyPool.com`
+- `"btcsig": "PoolName/[Solo]"` → Coinbase shows: `PoolName/[Solo]`
+- `"btcsig": "/[Solo]"` → Coinbase shows: `/[Solo]`
+- `"btcsig": ""` → No coinbase message
+
 ### Basic Configuration (Single Node)
 
 ```json
@@ -72,7 +82,7 @@ cd ckpool
         "zmqnotify": "tcp://127.0.0.1:28333"
     }],
     "btcaddress": "YOUR_BCH_ADDRESS",
-    "btcsig": "/[Solo]",
+    "btcsig": "PoolName/[Solo]",
     "pooladdress": "YOUR_BCH_ADDRESS",
     "poolfee": 1,
     "blockpoll": 50,
@@ -105,7 +115,7 @@ cd ckpool
         }
     ],
     "btcaddress": "YOUR_BCH_ADDRESS",
-    "btcsig": "/EloPool/",
+    "btcsig": "EloPool.cloud",
     "pooladdress": "YOUR_BCH_ADDRESS",
     "poolfee": 1,
     "mindiff": 500000,
