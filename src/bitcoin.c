@@ -15,6 +15,7 @@
 #include "libckpool.h"
 #include "bitcoin.h"
 #include "stratifier.h"
+#include "cashaddr_simple.h"
 
 static char* understood_rules[] = {"segwit"};
 
@@ -36,10 +37,29 @@ bool validate_address(connsock_t *cs, const char *address, bool *script, bool *s
 	json_t *val, *res_val, *valid_val, *tmp_val;
 	char rpc_req[128];
 	bool ret = false;
+	uint8_t hash160[20];
+	bool is_cashaddr = false;
+	bool is_p2sh = false;
 
 	if (unlikely(!address)) {
 		LOGWARNING("Null address passed to validate_address");
 		return ret;
+	}
+
+	/* Check if it's a CashAddr format */
+	if (strncasecmp(address, "bitcoincash:", 12) == 0 ||
+	    strncasecmp(address, "bchtest:", 8) == 0 ||
+	    strncasecmp(address, "bchreg:", 7) == 0) {
+		if (cashaddr_decode_simple(address, hash160, &is_p2sh)) {
+			is_cashaddr = true;
+			*script = is_p2sh;
+			*segwit = false;
+			LOGINFO("Valid CashAddr %s (P2%s)", address, is_p2sh ? "SH" : "PKH");
+			return true;
+		} else {
+			LOGWARNING("Invalid CashAddr format: %s", address);
+			return false;
+		}
 	}
 
 	snprintf(rpc_req, 128, "{\"method\": \"validateaddress\", \"params\": [\"%s\"]}\n", address);

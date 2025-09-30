@@ -28,7 +28,7 @@ libckpool_a_LIBADD = $(native_objs)
 bin_PROGRAMS = ckpool ckpmsg notifier
 ckpool_SOURCES = ckpool.c ckpool.h generator.c generator.h bitcoin.c bitcoin.h \
 		 stratifier.c stratifier.h connector.c connector.h uthash.h \
-		 utlist.h
+		 utlist.h cashaddr_simple.c cashaddr_simple.h
 ckpool_LDADD = libckpool.a @JANSSON_LIBS@ @LIBS@
 
 ckpmsg_SOURCES = ckpmsg.c

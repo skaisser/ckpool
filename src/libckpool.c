@@ -36,6 +36,7 @@
 #include "libckpool.h"
 #include "sha2.h"
 #include "utlist.h"
+#include "cashaddr_simple.h"
 
 #ifndef UNIX_PATH_MAX
 #define UNIX_PATH_MAX 108
@@ -1822,6 +1823,13 @@ static int segaddress_to_txn(char *p2h, const char *addr)
 /* Convert an address to a transaction and return the length of the transaction */
 int address_to_txn(char *p2h, const char *addr, const bool script, const bool segwit)
 {
+	/* Check if it's a CashAddr format */
+	if (strncasecmp(addr, "bitcoincash:", 12) == 0 ||
+	    strncasecmp(addr, "bchtest:", 8) == 0 ||
+	    strncasecmp(addr, "bchreg:", 7) == 0) {
+		return cashaddr_to_script(addr, (uint8_t *)p2h);
+	}
+
 	if (segwit)
 		return segaddress_to_txn(p2h, addr);
 	if (script)
