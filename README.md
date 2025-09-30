@@ -129,8 +129,11 @@ cd ckpool
 git clone https://github.com/skaisser/ckpool.git
 cd ckpool
 
-# Build from current directory
-./install-local.sh
+# Build and install
+./autogen.sh
+./configure
+make
+sudo make install
 ```
 
 ## ⚙️ Configuration
