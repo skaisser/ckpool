@@ -5014,7 +5014,7 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 		/* Apply NiceHash difficulty immediately */
 		client->suggest_diff = nicehash_diff;
 		client->diff = client->old_diff = nicehash_diff;
-		LOGINFO("NiceHash detected from useragent '%s' for client %s, applied difficulty %ld",
+		LOGNOTICE("NiceHash detected from useragent '%s' for client %s, applied difficulty %ld",
 			client->useragent, client->identity, nicehash_diff);
 	} else if (strcasestr(client->useragent, "miningrigrentals")) {
 		int64_t mrr_diff = 1000000; /* Default MRR minimum */
@@ -5034,7 +5034,7 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 		/* Apply MiningRigRentals difficulty immediately */
 		client->suggest_diff = mrr_diff;
 		client->diff = client->old_diff = mrr_diff;
-		LOGINFO("MiningRigRentals detected from useragent '%s' for client %s, applied difficulty %ld",
+		LOGNOTICE("MiningRigRentals detected from useragent '%s' for client %s, applied difficulty %ld",
 			client->useragent, client->identity, mrr_diff);
 	}
 
@@ -5493,9 +5493,9 @@ static void client_auth(ckpool_t *ckp, stratum_instance_t *client, user_instance
 			if (ckp->userproxy)
 				check_global_user(ckp, user, client);
 		} else {
-			LOGNOTICE("Authorised client %s %s worker %s as user %s",
+			LOGNOTICE("Authorised client %s %s worker %s as user %s with diff %ld",
 				  client->identity, client->address, client->workername,
-				  user->username);
+				  user->username, client->diff);
 		}
 		user->failed_authtime = 0;
 		user->auth_backoff = DEFAULT_AUTH_BACKOFF; /* Reset auth backoff time */
@@ -5596,7 +5596,7 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 					client->suggest_diff = override_diff;
 					/* Apply immediately for NiceHash compatibility */
 					client->diff = client->old_diff = override_diff;
-					LOGINFO("Client %s workername '%s' matched pattern '%s', applied difficulty %ld",
+					LOGNOTICE("Client %s workername '%s' matched pattern '%s', applied difficulty %ld",
 						client->identity, client->workername, pattern, override_diff);
 					break;  /* Use first matching pattern */
 				}
@@ -5632,7 +5632,7 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 
 				/* Apply immediately for NiceHash compatibility */
 				client->diff = client->old_diff = password_diff;
-				LOGINFO("Client %s set difficulty to %ld via password (overrides pattern)",
+				LOGNOTICE("Client %s set difficulty to %ld via password parameter",
 					client->identity, password_diff);
 			}
 		}
