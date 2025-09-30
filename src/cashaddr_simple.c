@@ -4,6 +4,7 @@
  * Focuses only on extracting hash160 from CashAddr format
  */
 
+#define _GNU_SOURCE  /* For asprintf */
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
