@@ -6332,8 +6332,8 @@ out_nowb:
 				submit = false;
 			}
 		} else {
-			err = SE_HIGH_DIFF;
-			LOGINFO("Rejected client %s high diff %.1f/%.0f/%s: %s",
+			err = SE_LOW_DIFF;
+			LOGINFO("Rejected client %s low diff %.1f/%.0f/%s: %s",
 				client->identity, sdiff, diff, wdiffsuffix, hexhash);
 			json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
 			submit = false;
