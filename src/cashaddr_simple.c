@@ -43,33 +43,35 @@ static uint64_t polymod(const uint8_t *values, size_t len)
     return c;
 }
 
-/* Convert between bit groups */
-static bool convert_bits(uint8_t *out, size_t *outlen, int outbits,
-                        const uint8_t *in, size_t inlen, int inbits, bool pad)
+/* Convert from 5-bit groups to 8-bit bytes */
+static bool convert_bits_5to8(uint8_t *out, size_t *outlen, const uint8_t *in, size_t inlen)
 {
-    int acc = 0;
+    uint32_t acc = 0;
     int bits = 0;
-    const int maxv = (1 << outbits) - 1;
-    const int max_acc = (1 << (inbits + outbits - 1)) - 1;
-    
     *outlen = 0;
+
     for (size_t i = 0; i < inlen; ++i) {
-        int value = in[i];
-        acc = ((acc << inbits) | value) & max_acc;
-        bits += inbits;
-        
-        while (bits >= outbits) {
-            bits -= outbits;
-            out[(*outlen)++] = (acc >> bits) & maxv;
+        uint8_t value = in[i];
+
+        /* Each input value should be 0-31 (5 bits) */
+        if (value >= 32) {
+            return false;
+        }
+
+        acc = (acc << 5) | value;
+        bits += 5;
+
+        while (bits >= 8) {
+            bits -= 8;
+            out[(*outlen)++] = (acc >> bits) & 0xff;
         }
     }
-    
-    if (pad) {
-        if (bits) out[(*outlen)++] = (acc << (outbits - bits)) & maxv;
-    } else if (bits >= inbits || ((acc << (outbits - bits)) & maxv)) {
+
+    /* Check that any remaining bits are zero (proper padding) */
+    if (bits >= 5 || (bits > 0 && ((acc << (8 - bits)) & 0xff) != 0)) {
         return false;
     }
-    
+
     return true;
 }
 
@@ -112,36 +114,48 @@ bool cashaddr_decode_simple(const char *addr, uint8_t *hash160, bool *is_p2sh)
         data[data_len++] = value;
     }
     
-    /* The last 8 values are checksum */
-    if (data_len < 8) {
+    /* The last 8 characters are checksum (40 bits) */
+    if (data_len < 9) {  /* At least version + 1 byte payload + 8 checksum */
         LOGDEBUG("Payload too short for checksum");
         return false;
     }
-    
+
+    /* Remove checksum from the end */
+    size_t data_without_checksum_len = data_len - 8;
+
+    /* Convert from 5-bit to 8-bit */
+    uint8_t decoded[65];
+    size_t decoded_len;
+
+    if (!convert_bits_5to8(decoded, &decoded_len, data, data_without_checksum_len)) {
+        LOGDEBUG("Failed to convert from 5-bit to 8-bit");
+        return false;
+    }
+
+    /* First byte is version/type byte */
+    if (decoded_len < 21) {  /* version + 20 bytes hash */
+        LOGDEBUG("Decoded length too short: %zu (expected at least 21)", decoded_len);
+        return false;
+    }
+
     /* Extract version byte */
-    uint8_t version = data[0];
-    
-    /* Decode type: bit 0 indicates P2SH in BCH */
-    *is_p2sh = (version & 0x01) != 0;
-    
-    /* Convert from 5-bit to 8-bit (skip version byte and checksum) */
-    uint8_t converted[64];
-    size_t converted_len;
-    
-    if (!convert_bits(converted, &converted_len, 8, 
-                      data + 1, data_len - 9, 5, false)) {
-        LOGDEBUG("Failed to convert bits");
+    uint8_t version = decoded[0];
+
+    /* Version byte format for CashAddr:
+     * Upper 4 bits: type (0 = P2PKH, 1 = P2SH)
+     * Lower 4 bits: size encoding
+     */
+    uint8_t type = (version >> 3) & 0x1f;
+    *is_p2sh = (type == 1);
+
+    /* Verify we have exactly 20 bytes for hash160 */
+    if (decoded_len != 21) {
+        LOGDEBUG("Invalid decoded length: %zu (expected 21 for hash160)", decoded_len);
         return false;
     }
-    
-    /* Should be exactly 20 bytes for hash160 */
-    if (converted_len != 20) {
-        LOGDEBUG("Invalid hash length: %zu (expected 20)", converted_len);
-        return false;
-    }
-    
-    /* Copy the hash160 */
-    memcpy(hash160, converted, 20);
+
+    /* Copy the hash160 (skip version byte) */
+    memcpy(hash160, decoded + 1, 20);
     
     /* Log what we extracted */
     char hash_hex[41];
