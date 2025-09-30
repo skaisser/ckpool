@@ -6319,10 +6319,20 @@ out_nowb:
 		char wdiffsuffix[16];
 
 		suffix_string(wdiff, wdiffsuffix, 16, 0);
-		if (sdiff >= diff) {
+		/* Only reject shares below the pool's absolute minimum difficulty.
+		 * Accept all shares above mindiff, even if below worker's target diff.
+		 * This ensures we never throw away valid work that could find blocks. */
+		if (sdiff >= ckp->mindiff) {
 			if (new_share(sdata, hash, id)) {
-				LOGINFO("Accepted client %s share diff %.1f/%.0f/%s: %s",
-					client->identity, sdiff, diff, wdiffsuffix, hexhash);
+				/* Log differently based on whether share meets target diff */
+				if (sdiff >= diff) {
+					LOGINFO("Accepted client %s share diff %.1f/%.0f/%s: %s",
+						client->identity, sdiff, diff, wdiffsuffix, hexhash);
+				} else {
+					/* Share is below target but above mindiff - accept but note it */
+					LOGINFO("Accepted client %s low share diff %.1f/%.0f/%s (above mindiff %ld): %s",
+						client->identity, sdiff, diff, wdiffsuffix, ckp->mindiff, hexhash);
+				}
 				result = true;
 			} else {
 				err = SE_DUPE;
@@ -6332,9 +6342,10 @@ out_nowb:
 				submit = false;
 			}
 		} else {
+			/* Only reject if below pool's absolute minimum */
 			err = SE_LOW_DIFF;
-			LOGINFO("Rejected client %s low diff %.1f/%.0f/%s: %s",
-				client->identity, sdiff, diff, wdiffsuffix, hexhash);
+			LOGINFO("Rejected client %s share diff %.1f below pool mindiff %ld: %s",
+				client->identity, sdiff, ckp->mindiff, hexhash);
 			json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
 			submit = false;
 		}
