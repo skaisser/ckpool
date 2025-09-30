@@ -22,6 +22,12 @@
   - Password-based difficulty setting (`-p d=1000` or `-p diff=1000000`)
   - Automatic difficulty for rental services via mindiff_overrides
   - Pattern-based worker name matching
+- **Bitcoin Cash CashAddr Support** ✅
+  - Full CashAddr address format support (no external dependencies)
+  - Supports `bitcoincash:`, `bchtest:`, `bchreg:` prefixes
+  - Native 5-bit to 8-bit conversion and checksum verification
+  - Backward compatible with legacy Base58 addresses
+  - **Successfully tested on BCH testnet** - Blocks 1677517, 1677523 mined to `bchtest:qz3ah8rh7juw3gsstsnce3fnyura3d34qc6qqtc3zs` ✓
 - **Bitcoin Cash Optimizations**
   - SegWit removed for BCH compatibility
   - Optimized for ASIC miners (500k+ difficulty)
