@@ -80,13 +80,14 @@ cat > "$INSTALL_DIR/ckpool-mainnet.conf" << 'EOF'
         "zmqnotify": "tcp://127.0.0.1:28333"
     }],
     "btcaddress": "bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy",
-    "btcsig": "YourPool",
-    "pooladdress": "bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy",
-    "poolfee": 1,
+    "btcsig": "EloPool.cloud",
+    "pooladdress": "bitcoincash:qp7azrnl28ezdvgnyjx3qmwfs8vph4jtxq9d7sdhez",
+    "poolfee": 1.0,
     "blockpoll": 50,
     "update_interval": 15,
     "serverurl": ["0.0.0.0:3333"],
     "logdir": "logs",
+    "sockdir": "/tmp/ckpool",
     "node_warning": false,
     "log_shares": true,
     "asicboost": true,
@@ -110,24 +111,26 @@ cat > "$INSTALL_DIR/ckpool-testnet.conf" << 'EOF'
         "url": "127.0.0.1:18332",
         "auth": "yourrpcuser",
         "pass": "yourrpcpass",
-        "notify": true
+        "notify": true,
+        "zmqnotify": "tcp://127.0.0.1:28332"
     }],
-    "btcaddress": "bchtest:qpvvcah8gzn7kz04jzamet8q2vv8uat9fqvhuy25gm",
-    "btcsig": "TestPool",
-    "pooladdress": "bchtest:qpvvcah8gzn7kz04jzamet8q2vv8uat9fqvhuy25gm",
-    "poolfee": 1,
+    "btcaddress": "bchtest:qz3ah8rh7juw3gsstsnce3fnyura3d34qc6qqtc3zs",
+    "btcsig": "EloPool.cloud/TestNet",
+    "pooladdress": "bchtest:qp7azrnl28ezdvgnyjx3qmwfs8vph4jtxq9d7sdhez",
+    "poolfee": 1.0,
     "blockpoll": 50,
     "update_interval": 15,
     "serverurl": ["0.0.0.0:3334"],
     "logdir": "logs",
+    "sockdir": "/tmp/ckpool",
     "node_warning": false,
     "log_shares": true,
     "asicboost": true,
     "version_mask": "1fffe000",
     "maxclients": 100,
-    "mindiff": 10,
-    "startdiff": 100,
-    "maxdiff": 10000
+    "mindiff": 1,
+    "startdiff": 10,
+    "maxdiff": 1000
 }
 EOF
 
@@ -191,7 +194,9 @@ echo "  • ckpool.conf - Symlink to mainnet (default)"
 echo
 echo -e "${YELLOW}Before starting:${NC}"
 echo "1. Edit the appropriate config file with your BCH node credentials"
-echo "2. Update btcaddress with your address (CashAddr format supported!)"
+echo "2. Update btcaddress with your main mining address (receives block rewards)"
+echo "3. Update pooladdress with your pool operator fee address"
+echo "4. Set poolfee to desired percentage (e.g., 1.0 for 1%, 2.5 for 2.5%)"
 echo
 echo "To start:"
 echo "  cd ~/ckpool"
@@ -204,8 +209,10 @@ echo
 echo "To stop:"
 echo "  ./stop-ckpool.sh"
 echo
-echo -e "${GREEN}CashAddr Support:${NC}"
-echo "✓ bitcoincash: addresses (mainnet)"
-echo "✓ bchtest: addresses (testnet)"
-echo "✓ bchreg: addresses (regtest)"
-echo "✓ Legacy addresses also supported"
+echo -e "${GREEN}Features:${NC}"
+echo "✓ CashAddr: bitcoincash:, bchtest:, bchreg: prefixes"
+echo "✓ Legacy Base58 addresses also supported"
+echo "✓ Pool Operator Fee: Automatic coinbase splitting"
+echo "  - btcaddress receives (100 - poolfee)% of block reward"
+echo "  - pooladdress receives poolfee% of block reward"
+echo "  - Tested: 1% and 2% fees working perfectly"
