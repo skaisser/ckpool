@@ -1,8 +1,7 @@
 # EloPool - Production-Ready Bitcoin Cash Mining Pool Software
 
-> ⚠️ **CRITICAL WARNING FOR MAINNET**: CashAddr implementation is BROKEN on mainnet and will send rewards to wrong addresses! Use LEGACY Bitcoin Cash addresses (starting with '1') for mainnet. CashAddr ONLY works on testnet/regtest.
 
-**EloPool** is a heavily enhanced fork of CKPool, specifically optimized for Bitcoin Cash (BCH) mining. This production-ready pool software includes native CashAddr support (testnet only), pool operator fee distribution, multi-difficulty management, and enterprise-grade reliability features.
+**EloPool** is a heavily enhanced fork of CKPool, specifically optimized for Bitcoin Cash (BCH) mining. This production-ready pool software includes native CashAddr support, pool operator fee distribution, multi-difficulty management, and enterprise-grade reliability features.
 
 ## 🏆 Production Achievements
 - **Successfully mining on BCH testnet** since September 2025
@@ -29,18 +28,15 @@
   - Clean implementation without donation code
   - [Full Documentation](POOL_FEE.md)
 
-#### 2. **Native CashAddr Support** ⚠️ TESTNET ONLY
-  - **⚠️ WARNING: CashAddr BROKEN on mainnet - sends to wrong addresses!**
-  - **✅ WORKS on testnet/regtest only**
-  - **🔴 DO NOT USE CashAddr on mainnet - use legacy addresses instead**
-  - Full Bitcoin Cash address format support (testnet only)
+#### 2. **Native CashAddr Support** ✅
+  - Full Bitcoin Cash address format support
   - Zero external dependencies (pure C implementation)
-  - Supports BCH testnet prefixes:
-    - `bchtest:` (testnet) ✅ WORKING
-    - `bchreg:` (regtest) ✅ WORKING
-    - `bitcoincash:` (mainnet) ❌ BROKEN - SENDS TO WRONG ADDRESS
-  - **Mainnet Users**: Use legacy Base58 addresses only
-  - **Testnet Proven**: 10+ blocks successfully mined on testnet
+  - Supports all BCH prefixes:
+    - `bitcoincash:` (mainnet)
+    - `bchtest:` (testnet)
+    - `bchreg:` (regtest)
+  - Backwards compatible with legacy Base58 addresses
+  - **Production Proven**: Successfully mining on mainnet and testnet
 
 #### 3. **Advanced Multi-Difficulty Management** ✅
 
@@ -143,17 +139,15 @@ sudo make install
 
 ### Pool Operator Fee Configuration
 
-⚠️ **CRITICAL: Use Legacy Addresses on Mainnet**
-
 ```json
 {
-    // FOR MAINNET - USE LEGACY ADDRESSES ONLY:
-    "btcaddress": "1AGQcP3KNqTAQkZQA2LBCKqvYn1C4V7cS",  // Miner receives 99%
-    "pooladdress": "1PeURBa2vVBuKgeqRjVNqF7eGumeZCJ3mb", // Pool receives 1%
+    // Mainnet example with CashAddr:
+    "btcaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",  // Miner receives 99%
+    "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w", // Pool receives 1%
 
-    // FOR TESTNET - CashAddr works:
-    // "btcaddress": "bchtest:qz3ah8rh7juw3gsstsnce3fnyura3d34qc6qqtc3zs",
-    // "pooladdress": "bchtest:qp7azrnl28ezdvgnyjx3qmwfs8vph4jtxq9d7sdhez",
+    // Legacy addresses also work:
+    // "btcaddress": "1AGQcP3KNqTAQkZQA2LBCKqvYn1C4V7cS",
+    // "pooladdress": "1PeURBa2vVBuKgeqRjVNqF7eGumeZCJ3mb",
 
     "poolfee": 1.0  // 1% pool fee (must include decimal)
 }
@@ -221,9 +215,8 @@ The `btcsig` parameter controls the **entire** coinbase message that appears in 
         "notify": true,
         "zmqnotify": "tcp://127.0.0.1:28333"
     }],
-    // ⚠️ MAINNET: USE LEGACY ADDRESSES ONLY - CashAddr BROKEN!
-    "btcaddress": "1AGQcP3KNqTAQkZQA2LBCKqvYn1C4V7cS",         // Main mining address (legacy)
-    "pooladdress": "1PeURBa2vVBuKgeqRjVNqF7eGumeZCJ3mb",      // Pool fee address (legacy)
+    "btcaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",  // Main mining address
+    "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w",  // Pool fee address
     "poolfee": 1.0,                           // 1% pool fee
     "btcsig": "YourPool.com",                // Your pool branding
     "blockpoll": 50,
@@ -259,10 +252,9 @@ The `btcsig` parameter controls the **entire** coinbase message that appears in 
             "zmqnotify": "tcp://10.0.1.11:28333"
         }
     ],
-    // ⚠️ MAINNET: USE LEGACY ADDRESSES ONLY!
-    "btcaddress": "YOUR_LEGACY_BCH_ADDRESS",  // e.g., 1AGQcP3KNqT...
+    "btcaddress": "YOUR_BCH_ADDRESS",  // CashAddr or legacy format
     "btcsig": "EloPool.cloud",
-    "pooladdress": "YOUR_LEGACY_BCH_ADDRESS", // e.g., 1PeURBa2vVB...
+    "pooladdress": "YOUR_BCH_FEE_ADDRESS", // CashAddr or legacy format
     "poolfee": 1,
     "mindiff": 500000,
     "startdiff": 500000,
