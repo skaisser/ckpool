@@ -21,7 +21,8 @@ This is not just a simple fork. EloPool has been **extensively modified** for Bi
 | **ZMQ Support** | Limited | Multi-node redundancy |
 
 ## 🏆 Production Achievements
-- **Successfully mining on BCH mainnet** - 66+ blocks mined
+- **66 Blocks mined on BCH mainnet** - Proven reliability in production
+- **Successfully mining on BCH mainnet** since 2025
 - **Battle-tested** with real ASIC hardware (Bitaxe, rental services)
 - **Zero share rejections** - Smart validation accepts all valid work
 - **Native CashAddr working** - Proven with millions of shares
