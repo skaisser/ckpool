@@ -1,6 +1,12 @@
-# EloPool (CKPool Fork) - High-Performance Bitcoin Cash Mining Pool
+# EloPool - Production-Ready Bitcoin Cash Mining Pool Software
 
-**EloPool** is an enhanced fork of CKPool optimized for Bitcoin Cash (BCH) mining with enterprise-grade features including multi-node ZMQ support, ASIC optimization, and high-performance architecture.
+**EloPool** is a heavily enhanced fork of CKPool, specifically optimized for Bitcoin Cash (BCH) mining. This production-ready pool software includes native CashAddr support, pool operator fee distribution, multi-difficulty management, and enterprise-grade reliability features.
+
+## 🏆 Production Achievements
+- **Successfully mining on BCH testnet** since September 2025
+- **10+ blocks mined** with proper fee distribution
+- **Native CashAddr implementation** (no external dependencies)
+- **Battle-tested** with real ASIC hardware (Bitaxe)
 
 ## 🚀 Key Features
 
@@ -11,31 +17,60 @@
 - **ASICBoost support** for improved mining efficiency
 - **Advanced vardiff** algorithm with stable high-difficulty handling
 
-### EloPool Enhancements
-- **Multi-Node ZMQ Support** 🆕
+### EloPool Major Enhancements (2025)
+
+#### 1. **Pool Operator Fee System** ✅ NEW!
+  - Automatic fee distribution in coinbase transaction
+  - Dual-output coinbase splitting (miner + pool operator)
+  - Configurable percentage (0.0% - 100.0%)
+  - **Testnet Verified**: Blocks 1677558 (1% fee), 1677572 (2% fee)
+  - Clean implementation without donation code
+  - [Full Documentation](POOL_FEE.md)
+
+#### 2. **Native CashAddr Support** ✅
+  - Full Bitcoin Cash address format support
+  - Zero external dependencies (pure C implementation)
+  - Supports all BCH prefixes:
+    - `bitcoincash:` (mainnet)
+    - `bchtest:` (testnet)
+    - `bchreg:` (regtest)
+  - Proper 5-bit to 8-bit base32 conversion
+  - Polymod checksum verification
+  - Backward compatible with legacy addresses
+  - **Testnet Proven**: 10+ blocks successfully mined
+
+#### 3. **Multi-Difficulty Management** ✅
+  - Single port supporting all difficulty ranges
+  - Password-based difficulty: `-p d=1000` or `-p diff=1000000`
+  - Pattern-based auto-difficulty via `mindiff_overrides`:
+    ```json
+    "mindiff_overrides": {
+        "nicehash": 500000,
+        "MiningRigRentals": 1000000,
+        "bitaxe": 100
+    }
+    ```
+  - Immediate difficulty adjustment after authorization
+  - Full NiceHash compatibility
+
+#### 4. **Multi-Node Redundancy** ✅
   - Connect to multiple BCH nodes simultaneously
-  - Redundant block notifications (failover support)
-  - Faster block detection (milliseconds vs polling)
-  - Load distribution across nodes
-- **Multi-Difficulty Support** 🆕
-  - Single port operation with per-miner difficulty
-  - Password-based difficulty setting (`-p d=1000` or `-p diff=1000000`)
-  - Automatic difficulty for rental services via mindiff_overrides
-  - Pattern-based worker name matching
-- **Bitcoin Cash CashAddr Support** ✅
-  - Full CashAddr address format support (no external dependencies)
-  - Supports `bitcoincash:`, `bchtest:`, `bchreg:` prefixes
-  - Native 5-bit to 8-bit conversion and checksum verification
-  - Backward compatible with legacy Base58 addresses
-  - **Successfully tested on BCH testnet** - Blocks 1677517, 1677523 mined to `bchtest:qz3ah8rh7juw3gsstsnce3fnyura3d34qc6qqtc3zs` ✓
-- **Bitcoin Cash Optimizations**
-  - SegWit removed for BCH compatibility
-  - Optimized for ASIC miners (500k+ difficulty)
-  - Fully configurable coinbase signatures (no hardcoded text)
-- **Production-Ready Configuration**
-  - Pre-configured for high-performance ASIC mining
-  - Comprehensive logging and monitoring
-  - SystemD service integration
+  - ZeroMQ (ZMQ) for instant block notifications
+  - Automatic failover between nodes
+  - Load distribution for getblocktemplate calls
+  - Eliminates single point of failure
+
+#### 5. **Fully Configurable Coinbase** ✅
+  - Complete control via `btcsig` parameter
+  - No hardcoded "ckpool" text
+  - Pool operators have full branding flexibility
+  - Supports up to 38 bytes of custom text
+
+#### 6. **Bitcoin Cash Optimizations**
+  - SegWit code completely removed
+  - Optimized for ASIC miners (default 500k+ difficulty)
+  - BCH-specific block validation
+  - Proper ASERT DAA handling
 
 ## 📋 Requirements
 
@@ -71,6 +106,20 @@ cd ckpool
 
 ## ⚙️ Configuration
 
+### Pool Operator Fee Configuration
+
+To enable automatic pool fee distribution:
+
+```json
+{
+    "btcaddress": "bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy",  // Miner receives 99%
+    "pooladdress": "bitcoincash:qp7azrnl28ezdvgnyjx3qmwfs8vph4jtxq9d7sdhez", // Pool receives 1%
+    "poolfee": 1.0  // 1% pool fee (must include decimal)
+}
+```
+
+This creates a dual-output coinbase transaction automatically splitting the block reward.
+
 ### Coinbase Message (btcsig)
 
 The `btcsig` parameter controls the **entire** coinbase message that appears in mined blocks. There is no hardcoded text - whatever you set in `btcsig` is exactly what will appear in the blockchain.
@@ -99,7 +148,7 @@ Miners can also set difficulty via password:
 - `-p diff=1000000` - Long format
 - Password difficulty overrides all other settings
 
-### Basic Configuration (Single Node)
+### Complete Production Configuration
 
 ```json
 {
@@ -110,16 +159,20 @@ Miners can also set difficulty via password:
         "notify": true,
         "zmqnotify": "tcp://127.0.0.1:28333"
     }],
-    "btcaddress": "YOUR_BCH_ADDRESS",
-    "btcsig": "PoolName/[Solo]",
-    "pooladdress": "YOUR_BCH_ADDRESS",
-    "poolfee": 1,
+    "btcaddress": "bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy",  // Main mining address
+    "pooladdress": "bitcoincash:qp7azrnl28ezdvgnyjx3qmwfs8vph4jtxq9d7sdhez", // Pool fee address
+    "poolfee": 1.0,                           // 1% pool fee
+    "btcsig": "YourPool.com",                // Your pool branding
     "blockpoll": 50,
     "update_interval": 15,
     "serverurl": ["0.0.0.0:3333"],
-    "mindiff": 500000,
+    "mindiff": 500000,                        // ASIC optimized
     "startdiff": 500000,
-    "maxdiff": 1000000
+    "maxdiff": 1000000,
+    "mindiff_overrides": {                    // Per-pattern difficulty
+        "nicehash": 500000,
+        "MiningRigRentals": 1000000
+    }
 }
 ```
 
@@ -295,6 +348,36 @@ CKPool uses Unix sockets for administration:
     └─────────┘      └─────────┘      └─────────┘
 ```
 
+## 📊 Testnet Achievements (September 2025)
+
+### Successfully Mined Blocks
+- **Block 1677517**: First CashAddr block
+- **Block 1677523**: Confirmed CashAddr working
+- **Block 1677558**: 1% pool fee distribution verified
+- **Block 1677572**: 2% pool fee distribution verified
+- **10+ additional blocks**: Continuous stable operation
+
+### Verified Features
+- ✅ CashAddr format (`bchtest:` addresses)
+- ✅ Pool fee splitting (dual-output coinbase)
+- ✅ Custom coinbase messages
+- ✅ Low difficulty for Bitaxe miners
+- ✅ Stable operation over extended periods
+
+## 🚀 What's Different from Original CKPool?
+
+This is not just a simple fork. EloPool has been extensively modified for Bitcoin Cash:
+
+| Feature | Original CKPool | EloPool |
+|---------|----------------|----------|
+| **CashAddr Support** | ❌ None | ✅ Native implementation |
+| **Pool Fee System** | ❌ Donation only | ✅ Configurable dual-output |
+| **Multi-Difficulty** | Basic | Advanced pattern matching |
+| **BCH Optimizations** | ❌ BTC focused | ✅ BCH specific |
+| **Coinbase Message** | Hardcoded "ckpool" | Fully configurable |
+| **ZMQ Support** | Limited | Multi-node redundancy |
+| **Rental Compatibility** | ❌ Issues | ✅ NiceHash/MRR ready |
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:
@@ -309,9 +392,13 @@ GNU Public License V3. See [COPYING](COPYING) for details.
 
 ## 🙏 Credits
 
-- **Original CKPool**: Con Kolivas and the CKPool team
-- **EloPool Fork**: Enhanced for Bitcoin Cash by the EloPool team
-- **Multi-Node ZMQ**: Implemented for enterprise BCH mining operations
+- **Original CKPool**: Con Kolivas and the CKPool team (base architecture)
+- **EloPool Development**:
+  - CashAddr implementation (2025)
+  - Pool fee system (2025)
+  - Multi-difficulty enhancements (2025)
+  - BCH-specific optimizations
+- **Testing**: Successfully mining on BCH testnet since September 2025
 
 ## 📞 Support
 
@@ -320,4 +407,4 @@ GNU Public License V3. See [COPYING](COPYING) for details.
 
 ---
 
-*EloPool - Enterprise-grade Bitcoin Cash mining pool software*
+*EloPool - Production-ready Bitcoin Cash mining pool software with native CashAddr support*
