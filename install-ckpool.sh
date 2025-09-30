@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# CKPool Standalone Installation Script for Bitcoin Cash
-# Installs to ~/ckpool directory
+# CKPool Installation Script
+# Builds from current working directory and installs to ~/ckpool
 
 set -e
 
 echo "======================================"
-echo "EloPool CkPool BCH      Pool Installer"
+echo "CKPool Installation"
 echo "======================================"
 echo
 
@@ -22,146 +22,70 @@ if [ "$EUID" -eq 0 ]; then
    exit 1
 fi
 
-# Set installation directory
+# Set directories
 INSTALL_DIR="$HOME/ckpool"
-echo "Installing CKPool to: $INSTALL_DIR"
+CURRENT_DIR=$(pwd)
+
+echo "Building from: $CURRENT_DIR"
+echo "Installing to: $INSTALL_DIR"
 echo
 
-# Create directory
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-
-# Install dependencies
-echo "Installing dependencies..."
-sudo apt-get update
-sudo apt-get install -y build-essential autoconf automake libtool \
-    libssl-dev libjansson-dev libcurl4-openssl-dev libgmp-dev \
-    libevent-dev git screen pkg-config jq
-
-# Clone CKPool
-echo
-echo "Cloning CKPool repository..."
-if [ ! -d "ckpool-source" ]; then
-    echo "Cloning from custom CKPool repository with BCH enhancements..."
-    git clone git@github.com:skaisser/ckpool.git ckpool-source --depth 1
-fi
-
-cd ckpool-source
-
-# Fix build issues
-echo
-echo "Preparing build environment..."
-
-# Create m4 directory if missing
-mkdir -p m4
+# Build from current directory
+echo "Building CKPool..."
 
 # Clean any previous build attempts
 make clean 2>/dev/null || true
-rm -f ltmain.sh 2>/dev/null || true
-
-# Run autoreconf with proper flags
-echo "Running autoreconf..."
-autoreconf -fiv
-
-# Configure
-echo
-echo "Configuring CKPool..."
-./configure --prefix="$INSTALL_DIR/build"
 
 # Build
-echo
-echo "Building CKPool..."
+autoreconf -fiv
+./configure --prefix="$INSTALL_DIR/build"
 make -j$(nproc)
 
-# Install to local directory
-echo
-echo "Installing CKPool..."
-# Ignore capability errors as they're not needed for ports > 1024
-make install 2>&1 | grep -v "CAP_NET_BIND_SERVICE" || true
-
-# Check if binaries were created
 if [ ! -f "src/ckpool" ]; then
     echo -e "${RED}Build failed!${NC}"
     exit 1
 fi
 
-# Copy binaries manually if install had issues
+echo -e "${GREEN}✓ Build successful${NC}"
+
+# Install
+echo "Installing to $INSTALL_DIR..."
+make install 2>&1 | grep -v "CAP_NET_BIND_SERVICE" || true
+
+# Create installation directory structure
+mkdir -p "$INSTALL_DIR"/{logs,users,pool,data}
+mkdir -p "$INSTALL_DIR/logs/shares"
+
+# Copy binaries to main directory for easy access
 echo "Copying binaries..."
 cp src/ckpool "$INSTALL_DIR/" 2>/dev/null || true
 cp src/ckpmsg "$INSTALL_DIR/" 2>/dev/null || true
 cp src/notifier "$INSTALL_DIR/" 2>/dev/null || true
-
-# Go back to main directory
-cd "$INSTALL_DIR"
+[ -d "build/bin" ] && cp build/bin/* "$INSTALL_DIR/" 2>/dev/null || true
 
 # Make binaries executable
-chmod +x ckpool ckpmsg notifier 2>/dev/null || true
+chmod +x "$INSTALL_DIR"/{ckpool,ckpmsg,notifier} 2>/dev/null || true
 
-# Create working directories
-echo "Creating working directories..."
-mkdir -p logs users pool data
-mkdir -p logs/shares
-mkdir -p logs/ckdb
+echo -e "${GREEN}✓ Installation complete${NC}"
 
-# Set permissions
-chmod 755 logs users pool data
-
-# Copy binaries to main directory for easy access
-cp build/bin/* . 2>/dev/null || true
-
-echo
-echo -e "${GREEN}✓ CKPool installed successfully!${NC}"
-echo
-
-# Function to generate random password
-generate_password() {
-    openssl rand -base64 32 | tr -d "=+/" | cut -c1-25
-}
-
-# Create configuration
-echo "======================================"
-echo "Pool Configuration"
-echo "======================================"
-echo
-
-# Get pool address
-read -p "Enter your pool's BCH address (for fees): " POOL_ADDRESS
-read -p "Enter pool fee percentage (e.g., 1 for 1%): " POOL_FEE
-
-# Default RPC placeholders for multi-node setup
-echo
-echo -e "${YELLOW}Note: This config supports multiple BCH nodes.${NC}"
-echo "You'll need to edit the RPC credentials and IPs in ckpool.conf"
-echo "after installation to match your BCH nodes."
-
-# Create ckpool configuration
-cat > ckpool.conf << EOF
+# Create mainnet configuration
+echo "Creating mainnet configuration..."
+cat > "$INSTALL_DIR/ckpool-mainnet.conf" << 'EOF'
 {
-    "btcd": [
-        {
-            "url": "CHANGE_ME_NODE1_IP:8332",
-            "auth": "CHANGE_ME_RPC_USER",
-            "pass": "CHANGE_ME_RPC_PASS",
-            "notify": true,
-            "zmqnotify": "tcp://CHANGE_ME_NODE1_IP:28333"
-        },
-        {
-            "url": "CHANGE_ME_NODE2_IP:8332",
-            "auth": "CHANGE_ME_RPC_USER",
-            "pass": "CHANGE_ME_RPC_PASS",
-            "notify": true,
-            "zmqnotify": "tcp://CHANGE_ME_NODE2_IP:28333"
-        }
-    ],
-    "btcaddress": "$POOL_ADDRESS",
-    "btcsig": "/[Solo]",
-    "pooladdress": "$POOL_ADDRESS",
-    "poolfee": $POOL_FEE,
+    "btcd": [{
+        "url": "127.0.0.1:8332",
+        "auth": "yourrpcuser",
+        "pass": "yourrpcpass",
+        "notify": true,
+        "zmqnotify": "tcp://127.0.0.1:28333"
+    }],
+    "btcaddress": "bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy",
+    "btcsig": "YourPool",
+    "pooladdress": "bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy",
+    "poolfee": 1,
     "blockpoll": 50,
     "update_interval": 15,
-    "serverurl": [
-        "0.0.0.0:3333"
-    ],
+    "serverurl": ["0.0.0.0:3333"],
     "logdir": "logs",
     "node_warning": false,
     "log_shares": true,
@@ -171,135 +95,117 @@ cat > ckpool.conf << EOF
     "mindiff": 500000,
     "startdiff": 500000,
     "maxdiff": 1000000,
-    "ports": {
-        "3333": {
-            "mindiff": 500000,
-            "startdiff": 500000,
-            "maxdiff": 1000000,
-            "client_timeout": 1200
-        }
+    "mindiff_overrides": {
+        "nicehash": 500000,
+        "MiningRigRentals": 1000000
     }
 }
 EOF
 
-echo -e "${GREEN}✓ Created ckpool.conf${NC}"
+# Create testnet configuration
+echo "Creating testnet configuration..."
+cat > "$INSTALL_DIR/ckpool-testnet.conf" << 'EOF'
+{
+    "btcd": [{
+        "url": "127.0.0.1:18332",
+        "auth": "yourrpcuser",
+        "pass": "yourrpcpass",
+        "notify": true
+    }],
+    "btcaddress": "bchtest:qpvvcah8gzn7kz04jzamet8q2vv8uat9fqvhuy25gm",
+    "btcsig": "TestPool",
+    "pooladdress": "bchtest:qpvvcah8gzn7kz04jzamet8q2vv8uat9fqvhuy25gm",
+    "poolfee": 1,
+    "blockpoll": 50,
+    "update_interval": 15,
+    "serverurl": ["0.0.0.0:3334"],
+    "logdir": "logs",
+    "node_warning": false,
+    "log_shares": true,
+    "asicboost": true,
+    "version_mask": "1fffe000",
+    "maxclients": 100,
+    "mindiff": 10,
+    "startdiff": 100,
+    "maxdiff": 10000
+}
+EOF
+
+# Create default symlink to mainnet
+ln -sf ckpool-mainnet.conf "$INSTALL_DIR/ckpool.conf"
+
+echo -e "${GREEN}✓ Created configuration files${NC}"
 
 # Create start script
-cat > start-ckpool.sh << 'EOF'
+cat > "$INSTALL_DIR/start-ckpool.sh" << 'EOF'
 #!/bin/bash
 
-# Start CKPool
-echo "Starting CKPool..."
+CONFIG="${1:-ckpool.conf}"
 
-# Check if ckpool is already running
+echo "Starting CKPool with config: $CONFIG"
+
 if pgrep -x "ckpool" > /dev/null; then
     echo "CKPool is already running!"
     exit 1
 fi
 
-# Ensure we're in the right directory
 cd "$(dirname "$0")"
 
 # Start ckpool
-./ckpool -c ckpool.conf -L
+./ckpool -c "$CONFIG" -L
 
-echo "CKPool started. Check logs/ directory for output."
-echo "To monitor: tail -f logs/ckpool.log"
+echo "CKPool started. Check logs/ckpool.log"
 EOF
 
-chmod +x start-ckpool.sh
+chmod +x "$INSTALL_DIR/start-ckpool.sh"
 
 # Create stop script
-cat > stop-ckpool.sh << 'EOF'
+cat > "$INSTALL_DIR/stop-ckpool.sh" << 'EOF'
 #!/bin/bash
 
-# Stop CKPool
 echo "Stopping CKPool..."
-
-# Send SIGTERM to ckpool
 pkill -TERM ckpool
-
 sleep 2
 
-# Check if stopped
 if pgrep -x "ckpool" > /dev/null; then
-    echo "CKPool still running, force stopping..."
+    echo "Force stopping..."
     pkill -9 ckpool
 fi
 
 echo "CKPool stopped."
 EOF
 
-chmod +x stop-ckpool.sh
-
-# Create systemd service file
-cat > ckpool.service << EOF
-[Unit]
-Description=CKPool Bitcoin Cash Mining Pool
-After=network.target bitcoind.service
-
-[Service]
-Type=simple
-User=$USER
-WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/ckpool -c $INSTALL_DIR/ckpool.conf -L
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Note about ZMQ vs blocknotify
-echo
-echo -e "${GREEN}✓ Using ZMQ for block notifications${NC}"
-echo "This pool uses ZMQ instead of blocknotify for faster block detection."
-echo "Make sure your BCH nodes have ZMQ enabled in their bitcoin.conf."
+chmod +x "$INSTALL_DIR/stop-ckpool.sh"
 
 echo
 echo "======================================"
 echo -e "${GREEN}Installation Complete!${NC}"
 echo "======================================"
 echo
-echo "CKPool installed to: $INSTALL_DIR"
+echo "Installed to: $INSTALL_DIR"
 echo
-echo "Configuration Summary:"
-echo "  - Pool Address: $POOL_ADDRESS"
-echo "  - Pool Fee: $POOL_FEE%"
-echo "  - Stratum Port: 3333"
-echo "  - ASICBoost: Enabled"
-echo "  - Min Difficulty: 500,000 (ASIC optimized)"
-echo "  - Start Difficulty: 500,000"
-echo "  - Max Difficulty: 1,000,000"
-echo "  - Multi-Node Support: Enabled (2 nodes)"
-echo "  - ZMQ Support: Enabled"
+echo "Configuration files created:"
+echo "  • ckpool-mainnet.conf - Mainnet configuration (port 3333)"
+echo "  • ckpool-testnet.conf - Testnet configuration (port 3334)"
+echo "  • ckpool.conf - Symlink to mainnet (default)"
 echo
-echo "To start the pool:"
+echo -e "${YELLOW}Before starting:${NC}"
+echo "1. Edit the appropriate config file with your BCH node credentials"
+echo "2. Update btcaddress with your address (CashAddr format supported!)"
+echo
+echo "To start:"
 echo "  cd ~/ckpool"
-echo "  ./start-ckpool.sh"
+echo "  ./start-ckpool.sh                    # Uses mainnet config"
+echo "  ./start-ckpool.sh ckpool-testnet.conf  # Uses testnet config"
 echo
-echo "To stop the pool:"
-echo "  cd ~/ckpool"
-echo "  ./stop-ckpool.sh"
-echo
-echo "To install as systemd service:"
-echo "  sudo cp ~/ckpool/ckpool.service /etc/systemd/system/"
-echo "  sudo systemctl daemon-reload"
-echo "  sudo systemctl enable ckpool"
-echo "  sudo systemctl start ckpool"
-echo
-echo "Monitor logs:"
+echo "To monitor:"
 echo "  tail -f ~/ckpool/logs/ckpool.log"
 echo
-echo -e "${YELLOW}IMPORTANT: Before starting the pool:${NC}"
-echo "1. Edit ~/ckpool/ckpool.conf and replace:"
-echo "   - CHANGE_ME_NODE1_IP with your first BCH node IP"
-echo "   - CHANGE_ME_NODE2_IP with your second BCH node IP"
-echo "   - CHANGE_ME_RPC_USER with your RPC username"
-echo "   - CHANGE_ME_RPC_PASS with your RPC password"
+echo "To stop:"
+echo "  ./stop-ckpool.sh"
 echo
-echo "2. Ensure your BCH nodes have ZMQ enabled:"
-echo "   zmqpubhashblock=tcp://0.0.0.0:28333"
-echo
-echo "Note: CKPool will create user share logs in ~/ckpool/users/"
-echo "tracking shares by username for your external payment system."
+echo -e "${GREEN}CashAddr Support:${NC}"
+echo "✓ bitcoincash: addresses (mainnet)"
+echo "✓ bchtest: addresses (testnet)"
+echo "✓ bchreg: addresses (regtest)"
+echo "✓ Legacy addresses also supported"
