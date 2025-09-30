@@ -43,17 +43,19 @@
 
 **Three Methods of Difficulty Control (Priority Order):**
 
-##### a) **Password-Based Difficulty** (Highest Priority)
+##### a) **Password-Based Difficulty** (Highest Priority) ✅ TESTED
   - Set difficulty via password field: `-p d=500000` or `-p diff=1000000`
+  - **Both formats supported**: `d=` (short) and `diff=` (long)
   - Overrides ALL other difficulty settings
   - Applied immediately upon authorization
   - Perfect for individual miner control
+  - **Testnet verified**: Successfully tested with `d=41245` on Bitaxe
   - Examples:
     ```bash
-    # Short format
+    # Short format (tested & working)
     ./bfgminer -o stratum+tcp://pool:3333 -u wallet.worker -p d=500000
 
-    # Long format
+    # Long format (also supported)
     ./cgminer -o stratum+tcp://pool:3333 -u wallet.worker -p diff=1000000
     ```
 
@@ -258,6 +260,11 @@ The `btcsig` parameter controls the **entire** coinbase message that appears in 
 
 ## 🎯 NiceHash & MiningRigRentals Setup
 
+### 🚧 Production Testing Status
+- ✅ **Password-based difficulty**: Tested & working on testnet
+- 🔄 **Useragent detection**: Ready for production testing with NiceHash
+- 🔄 **Pattern matching**: Ready for production testing
+
 ### For Pool Operators
 
 Just add to your config:
@@ -276,11 +283,12 @@ Just add to your config:
 
 ### For Miners/Renters
 
-#### NiceHash
+#### NiceHash (Ready for Production Testing)
 1. Add pool: `stratum+tcp://POOL_IP:3333`
 2. Use your BCH address as username
-3. Any password (or use `p=d=DIFFICULTY` to override)
-4. **Pool auto-detects NiceHash and applies 500k+ difficulty**
+3. Any password (or use `d=DIFFICULTY` to override)
+4. **Pool auto-detects NiceHash from useragent and applies 500k+ difficulty**
+5. **Note**: Ensure `maxdiff` is 0 or > 500000 in config
 
 #### MiningRigRentals
 1. Pool URL: `stratum+tcp://POOL_IP:3333`
@@ -447,6 +455,7 @@ CKPool uses Unix sockets for administration:
 - ✅ CashAddr format (`bchtest:` addresses)
 - ✅ Pool fee splitting (dual-output coinbase)
 - ✅ Custom coinbase messages
+- ✅ Password-based difficulty (`-p d=41245` tested with Bitaxe)
 - ✅ Low difficulty for Bitaxe miners
 - ✅ Stable operation over extended periods
 
