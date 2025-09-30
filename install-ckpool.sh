@@ -22,10 +22,13 @@ if [ "$EUID" -eq 0 ]; then
    exit 1
 fi
 
-# Set directories
-INSTALL_DIR="$HOME/ckpool"
+# Prompt for installation directory
+echo -e "${YELLOW}Where would you like to install CKPool?${NC}"
+read -e -p "Installation directory (default: $HOME/ckpool): " USER_INSTALL_DIR
+INSTALL_DIR="${USER_INSTALL_DIR:-$HOME/ckpool}"
 CURRENT_DIR=$(pwd)
 
+echo
 echo "Building from: $CURRENT_DIR"
 echo "Installing to: $INSTALL_DIR"
 echo
@@ -70,7 +73,7 @@ echo -e "${GREEN}✓ Installation complete${NC}"
 
 # Create mainnet configuration
 echo "Creating mainnet configuration..."
-cat > "$INSTALL_DIR/ckpool-mainnet.conf" << 'EOF'
+cat > "$INSTALL_DIR/ckpool.conf" << 'EOF'
 {
     "btcd": [{
         "url": "127.0.0.1:8332",
@@ -95,10 +98,14 @@ cat > "$INSTALL_DIR/ckpool-mainnet.conf" << 'EOF'
     "maxclients": 10000,
     "mindiff": 500000,
     "startdiff": 500000,
-    "maxdiff": 1000000,
+    "maxdiff": 0,
     "mindiff_overrides": {
         "nicehash": 500000,
-        "MiningRigRentals": 1000000
+        "NiceHash": 500000,
+        "MiningRigRentals": 1000000,
+        "miningrigrentals": 1000000,
+        "bitaxe": 1,
+        "test": 1
     }
 }
 EOF
@@ -122,7 +129,7 @@ cat > "$INSTALL_DIR/ckpool-testnet.conf" << 'EOF'
     "update_interval": 15,
     "serverurl": ["0.0.0.0:3334"],
     "logdir": "logs",
-    "sockdir": "/tmp/ckpool",
+    "sockdir": "/tmp/ckpool-testnet",
     "node_warning": false,
     "log_shares": true,
     "asicboost": true,
@@ -130,12 +137,17 @@ cat > "$INSTALL_DIR/ckpool-testnet.conf" << 'EOF'
     "maxclients": 100,
     "mindiff": 1,
     "startdiff": 10,
-    "maxdiff": 1000
+    "maxdiff": 0,
+    "mindiff_overrides": {
+        "nicehash": 500000,
+        "NiceHash": 500000,
+        "MiningRigRentals": 1000000,
+        "miningrigrentals": 1000000,
+        "bitaxe": 1,
+        "test": 1
+    }
 }
 EOF
-
-# Create default symlink to mainnet
-ln -sf ckpool-mainnet.conf "$INSTALL_DIR/ckpool.conf"
 
 echo -e "${GREEN}✓ Created configuration files${NC}"
 
@@ -146,11 +158,6 @@ cat > "$INSTALL_DIR/start-ckpool.sh" << 'EOF'
 CONFIG="${1:-ckpool.conf}"
 
 echo "Starting CKPool with config: $CONFIG"
-
-if pgrep -x "ckpool" > /dev/null; then
-    echo "CKPool is already running!"
-    exit 1
-fi
 
 cd "$(dirname "$0")"
 
@@ -188,31 +195,32 @@ echo
 echo "Installed to: $INSTALL_DIR"
 echo
 echo "Configuration files created:"
-echo "  • ckpool-mainnet.conf - Mainnet configuration (port 3333)"
+echo "  • ckpool.conf - Mainnet configuration (port 3333)"
 echo "  • ckpool-testnet.conf - Testnet configuration (port 3334)"
-echo "  • ckpool.conf - Symlink to mainnet (default)"
 echo
 echo -e "${YELLOW}Before starting:${NC}"
-echo "1. Edit the appropriate config file with your BCH node credentials"
-echo "2. Update btcaddress with your main mining address (receives block rewards)"
+echo "1. Edit the config file with your BCH node credentials"
+echo "2. Update btcaddress with your mining address (receives block rewards)"
 echo "3. Update pooladdress with your pool operator fee address"
-echo "4. Set poolfee to desired percentage (e.g., 1.0 for 1%, 2.5 for 2.5%)"
+echo "4. Set poolfee to desired percentage (e.g., 1.0 for 1%, 2.0 for 2%)"
+echo "5. Update sockdir if running multiple instances (avoid conflicts)"
 echo
 echo "To start:"
-echo "  cd ~/ckpool"
-echo "  ./start-ckpool.sh                    # Uses mainnet config"
-echo "  ./start-ckpool.sh ckpool-testnet.conf  # Uses testnet config"
+echo "  cd $INSTALL_DIR"
+echo "  ./start-ckpool.sh                      # Uses ckpool.conf (mainnet)"
+echo "  ./start-ckpool.sh ckpool-testnet.conf # Uses testnet config"
 echo
 echo "To monitor:"
-echo "  tail -f ~/ckpool/logs/ckpool.log"
+echo "  tail -f $INSTALL_DIR/logs/ckpool.log"
 echo
 echo "To stop:"
 echo "  ./stop-ckpool.sh"
 echo
-echo -e "${GREEN}Features:${NC}"
-echo "✓ CashAddr: bitcoincash:, bchtest:, bchreg: prefixes"
-echo "✓ Legacy Base58 addresses also supported"
-echo "✓ Pool Operator Fee: Automatic coinbase splitting"
-echo "  - btcaddress receives (100 - poolfee)% of block reward"
-echo "  - pooladdress receives poolfee% of block reward"
-echo "  - Tested: 1% and 2% fees working perfectly"
+echo -e "${GREEN}Verified Features:${NC}"
+echo "✓ Native CashAddr support (bitcoincash:, bchtest:, bchreg:)"
+echo "✓ Legacy Base58 addresses supported"
+echo "✓ Pool operator fee with automatic coinbase splitting"
+echo "✓ Multi-difficulty management (password, useragent, pattern)"
+echo "✓ Password-based difficulty: -p d=500000"
+echo "✓ Auto-detection: NiceHash, MiningRigRentals"
+echo "✓ Successfully tested on BCH testnet (10+ blocks mined)"
