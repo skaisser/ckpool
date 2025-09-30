@@ -4993,6 +4993,51 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 	if (strcasestr(client->useragent, "gminer"))
 		client->messages = true;
 
+	/* Check for rental services in useragent and apply appropriate difficulty
+	 * NiceHash sends useragent like "NiceHashMiner/1.0.0"
+	 * MiningRigRentals sends useragent with "MiningRigRentals" */
+	if (strcasestr(client->useragent, "nicehash")) {
+		int64_t nicehash_diff = 500000; /* Default NiceHash minimum */
+
+		/* Check if there's a specific override in mindiff_overrides */
+		if (ckp->mindiff_overrides && json_is_object(ckp->mindiff_overrides)) {
+			json_t *diff_val = json_object_get(ckp->mindiff_overrides, "nicehash");
+			if (!diff_val)
+				diff_val = json_object_get(ckp->mindiff_overrides, "NiceHash");
+			if (diff_val && json_is_integer(diff_val)) {
+				int64_t override_diff = json_integer_value(diff_val);
+				if (override_diff > 0)
+					nicehash_diff = override_diff;
+			}
+		}
+
+		/* Apply NiceHash difficulty immediately */
+		client->suggest_diff = nicehash_diff;
+		client->diff = client->old_diff = nicehash_diff;
+		LOGINFO("NiceHash detected from useragent '%s' for client %s, applied difficulty %ld",
+			client->useragent, client->identity, nicehash_diff);
+	} else if (strcasestr(client->useragent, "miningrigrentals")) {
+		int64_t mrr_diff = 1000000; /* Default MRR minimum */
+
+		/* Check if there's a specific override in mindiff_overrides */
+		if (ckp->mindiff_overrides && json_is_object(ckp->mindiff_overrides)) {
+			json_t *diff_val = json_object_get(ckp->mindiff_overrides, "miningrigrentals");
+			if (!diff_val)
+				diff_val = json_object_get(ckp->mindiff_overrides, "MiningRigRentals");
+			if (diff_val && json_is_integer(diff_val)) {
+				int64_t override_diff = json_integer_value(diff_val);
+				if (override_diff > 0)
+					mrr_diff = override_diff;
+			}
+		}
+
+		/* Apply MiningRigRentals difficulty immediately */
+		client->suggest_diff = mrr_diff;
+		client->diff = client->old_diff = mrr_diff;
+		LOGINFO("MiningRigRentals detected from useragent '%s' for client %s, applied difficulty %ld",
+			client->useragent, client->identity, mrr_diff);
+	}
+
 	/* We got what we needed */
 	if (ckp->node)
 		return NULL;
