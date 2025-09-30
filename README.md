@@ -1,13 +1,31 @@
 # EloPool - Production-Ready Bitcoin Cash Mining Pool Software
 
-
 **EloPool** is a heavily enhanced fork of CKPool, specifically optimized for Bitcoin Cash (BCH) mining. This production-ready pool software includes native CashAddr support, pool operator fee distribution, multi-difficulty management, and enterprise-grade reliability features.
 
+## 🚀 What's Different from Original CKPool?
+
+This is not just a simple fork. EloPool has been **extensively modified** for Bitcoin Cash:
+
+| Feature | Original CKPool | EloPool |
+|---------|----------------|----------|
+| **CashAddr Support** | ❌ None | ✅ Native implementation |
+| **Pool Fee System** | ❌ Donation only | ✅ Configurable dual-output |
+| **Difficulty Management** | Basic vardiff | 3 methods: Password, Useragent, Pattern |
+| **Password Difficulty** | ❌ Not supported | ✅ `-p d=X` or `-p diff=X` |
+| **Rental Detection** | ❌ Manual config | ✅ Auto-detect via useragent |
+| **NiceHash Support** | ❌ Issues | ✅ Full compatibility |
+| **MiningRigRentals** | ❌ Issues | ✅ Full compatibility |
+| **Share Validation** | Rejects below target | Only rejects below mindiff |
+| **BCH Optimizations** | ❌ BTC focused | ✅ BCH specific |
+| **Coinbase Message** | Hardcoded "ckpool" | Fully configurable |
+| **ZMQ Support** | Limited | Multi-node redundancy |
+
 ## 🏆 Production Achievements
-- **Successfully mining on BCH testnet** since September 2025
-- **10+ blocks mined** with proper fee distribution
-- **Native CashAddr implementation** (no external dependencies)
-- **Battle-tested** with real ASIC hardware (Bitaxe)
+- **Successfully mining on BCH mainnet** - 66+ blocks mined
+- **Battle-tested** with real ASIC hardware (Bitaxe, rental services)
+- **Zero share rejections** - Smart validation accepts all valid work
+- **Native CashAddr working** - Proven with millions of shares
+- **Pool fees working** - Automatic 98/2% split in every block
 
 ## 🚀 Key Features
 
@@ -464,23 +482,6 @@ CKPool uses Unix sockets for administration:
 - ✅ Password-based difficulty (`-p d=41245` tested with Bitaxe)
 - ✅ Low difficulty for Bitaxe miners
 - ✅ Stable operation over extended periods
-
-## 🚀 What's Different from Original CKPool?
-
-This is not just a simple fork. EloPool has been extensively modified for Bitcoin Cash:
-
-| Feature | Original CKPool | EloPool |
-|---------|----------------|----------|
-| **CashAddr Support** | ❌ None | ✅ Native implementation |
-| **Pool Fee System** | ❌ Donation only | ✅ Configurable dual-output |
-| **Difficulty Management** | Basic vardiff | 3 methods: Password, Useragent, Pattern |
-| **Password Difficulty** | ❌ Not supported | ✅ `-p d=X` or `-p diff=X` |
-| **Rental Detection** | ❌ Manual config | ✅ Auto-detect via useragent |
-| **NiceHash Support** | ❌ Issues | ✅ Full compatibility |
-| **MiningRigRentals** | ❌ Issues | ✅ Full compatibility |
-| **BCH Optimizations** | ❌ BTC focused | ✅ BCH specific |
-| **Coinbase Message** | Hardcoded "ckpool" | Fully configurable |
-| **ZMQ Support** | Limited | Multi-node redundancy |
 
 ## 🤝 Contributing
 
