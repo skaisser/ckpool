@@ -39,19 +39,46 @@
   - Backward compatible with legacy addresses
   - **Testnet Proven**: 10+ blocks successfully mined
 
-#### 3. **Multi-Difficulty Management** ✅
-  - Single port supporting all difficulty ranges
-  - Password-based difficulty: `-p d=1000` or `-p diff=1000000`
-  - Pattern-based auto-difficulty via `mindiff_overrides`:
+#### 3. **Advanced Multi-Difficulty Management** ✅
+
+**Three Methods of Difficulty Control (Priority Order):**
+
+##### a) **Password-Based Difficulty** (Highest Priority)
+  - Set difficulty via password field: `-p d=500000` or `-p diff=1000000`
+  - Overrides ALL other difficulty settings
+  - Applied immediately upon authorization
+  - Perfect for individual miner control
+  - Examples:
+    ```bash
+    # Short format
+    ./bfgminer -o stratum+tcp://pool:3333 -u wallet.worker -p d=500000
+
+    # Long format
+    ./cgminer -o stratum+tcp://pool:3333 -u wallet.worker -p diff=1000000
+    ```
+
+##### b) **Useragent-Based Detection** (Auto-Detection) 🆕
+  - **Automatically detects rental services** from mining.subscribe
+  - No special configuration needed by miners!
+  - Applied immediately during connection
+  - Supported services:
+    - **NiceHash**: Detects `"NiceHashMiner"` in useragent → 500k diff
+    - **MiningRigRentals**: Detects `"MiningRigRentals"` → 1M diff
+  - Works exactly like AsicSteer and other modern pools
+
+##### c) **Worker Name Pattern Matching** (Config-Based)
+  - Configure patterns in `mindiff_overrides`:
     ```json
     "mindiff_overrides": {
-        "nicehash": 500000,
-        "MiningRigRentals": 1000000,
-        "bitaxe": 100
+        "nicehash": 500000,      // Matches: wallet.nicehash_rig1
+        "MiningRigRentals": 1000000,  // Matches: wallet.MiningRigRentals_xyz
+        "bitaxe": 100,           // Matches: wallet.bitaxe_home
+        "high": 2000000          // Matches: wallet.high_performance
     }
     ```
-  - Immediate difficulty adjustment after authorization
-  - Full NiceHash compatibility
+  - Case-insensitive substring matching
+  - Applied during worker authorization
+  - Useful for custom miner groups
 
 #### 4. **Multi-Node Redundancy** ✅
   - Connect to multiple BCH nodes simultaneously
@@ -130,23 +157,44 @@ The `btcsig` parameter controls the **entire** coinbase message that appears in 
 - `"btcsig": "/[Solo]"` → Coinbase shows: `/[Solo]`
 - `"btcsig": ""` → No coinbase message
 
-### Multi-Difficulty Settings
+### Difficulty Configuration Examples
 
-Configure automatic difficulty per worker pattern using `mindiff_overrides`:
+#### For Rental Services (NiceHash, MiningRigRentals)
 
 ```json
 "mindiff_overrides": {
-    "nicehash": 500000,      // Workers with "nicehash" in name
-    "MiningRigRentals": 1000000,  // Mining rental services
-    "bitaxe": 1000,          // Low-power miners
-    "stratum-proxy": 10000   // Proxy connections
+    "nicehash": 500000,           // Auto-detected via useragent OR worker name
+    "NiceHash": 500000,           // Alternative capitalization
+    "MiningRigRentals": 1000000,  // Auto-detected via useragent OR worker name
+    "miningrigrentals": 1000000   // Alternative capitalization
 }
 ```
 
-Miners can also set difficulty via password:
-- `-p d=1000` - Short format
-- `-p diff=1000000` - Long format
-- Password difficulty overrides all other settings
+**Note**: Rental services are **automatically detected** via useragent. The mindiff_overrides values are used as the difficulty to apply when detected.
+
+#### For Custom Worker Groups
+
+```json
+"mindiff_overrides": {
+    "bitaxe": 100,               // Low-power miners
+    "s19": 1000000,              // Antminer S19 rigs
+    "high": 5000000,             // High-performance farms
+    "stratum-proxy": 10000       // Proxy connections
+}
+```
+
+#### Password-Based Difficulty (Per Connection)
+
+```bash
+# Set specific difficulty via password
+./cgminer -o stratum+tcp://pool:3333 -u BCH_ADDRESS.worker -p d=500000
+
+# Or using long format
+./bfgminer -o stratum+tcp://pool:3333 -u BCH_ADDRESS.worker -p diff=1000000
+
+# Combine with other password options
+./cgminer -o stratum+tcp://pool:3333 -u BCH_ADDRESS.worker -p d=500000,stats
+```
 
 ### Complete Production Configuration
 
@@ -206,6 +254,44 @@ Miners can also set difficulty via password:
     "asicboost": true,
     "version_mask": "1fffe000"
 }
+```
+
+## 🎯 NiceHash & MiningRigRentals Setup
+
+### For Pool Operators
+
+Just add to your config:
+```json
+{
+    "mindiff_overrides": {
+        "nicehash": 500000,
+        "NiceHash": 500000,
+        "MiningRigRentals": 1000000,
+        "miningrigrentals": 1000000
+    }
+}
+```
+
+**That's it!** The pool will automatically detect and apply correct difficulty.
+
+### For Miners/Renters
+
+#### NiceHash
+1. Add pool: `stratum+tcp://POOL_IP:3333`
+2. Use your BCH address as username
+3. Any password (or use `p=d=DIFFICULTY` to override)
+4. **Pool auto-detects NiceHash and applies 500k+ difficulty**
+
+#### MiningRigRentals
+1. Pool URL: `stratum+tcp://POOL_IP:3333`
+2. Worker: `YOUR_BCH_ADDRESS.rigname`
+3. Password: `x` (or `d=DIFFICULTY` to set custom)
+4. **Pool auto-detects MRR and applies 1M+ difficulty**
+
+#### Regular Miners (Non-Rental)
+```bash
+# Use password to set your preferred difficulty
+./cgminer -o stratum+tcp://POOL_IP:3333 -u BCH_ADDRESS.worker -p d=50000
 ```
 
 ## 🚦 BCH Node Setup
@@ -372,11 +458,14 @@ This is not just a simple fork. EloPool has been extensively modified for Bitcoi
 |---------|----------------|----------|
 | **CashAddr Support** | ❌ None | ✅ Native implementation |
 | **Pool Fee System** | ❌ Donation only | ✅ Configurable dual-output |
-| **Multi-Difficulty** | Basic | Advanced pattern matching |
+| **Difficulty Management** | Basic vardiff | 3 methods: Password, Useragent, Pattern |
+| **Password Difficulty** | ❌ Not supported | ✅ `-p d=X` or `-p diff=X` |
+| **Rental Detection** | ❌ Manual config | ✅ Auto-detect via useragent |
+| **NiceHash Support** | ❌ Issues | ✅ Full compatibility |
+| **MiningRigRentals** | ❌ Issues | ✅ Full compatibility |
 | **BCH Optimizations** | ❌ BTC focused | ✅ BCH specific |
 | **Coinbase Message** | Hardcoded "ckpool" | Fully configurable |
 | **ZMQ Support** | Limited | Multi-node redundancy |
-| **Rental Compatibility** | ❌ Issues | ✅ NiceHash/MRR ready |
 
 ## 🤝 Contributing
 
