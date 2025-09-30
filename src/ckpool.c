@@ -1448,6 +1448,8 @@ static void parse_config(ckpool_t *ckp)
 			parse_btcds(ckp, arr_val, arr_size);
 	}
 	json_get_string(&ckp->btcaddress, json_conf, "btcaddress");
+	json_get_string(&ckp->pooladdress, json_conf, "pooladdress");
+	json_get_double(&ckp->poolfee, json_conf, "poolfee");
 	json_get_string(&ckp->btcsig, json_conf, "btcsig");
 	if (ckp->btcsig && strlen(ckp->btcsig) > 38) {
 		LOGWARNING("Signature %s too long, truncating to 38 bytes", ckp->btcsig);

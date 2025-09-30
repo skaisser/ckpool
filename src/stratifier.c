@@ -394,6 +394,8 @@ struct stratifier_data {
 	int txnlen;
 	char dontxnbin[48];
 	int dontxnlen;
+	char pooltxnbin[48];
+	int pooltxnlen;
 
 	pool_stats_t stats;
 	/* Protects changes to pool stats */
@@ -598,7 +600,17 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 
 	// Generation value
 	g64 = wb->coinbasevalue;
-	if (ckp->donvalid && ckp->donation > 0) {
+
+	/* Check for pool operator fee or donation */
+	if (ckp->poolvalid && ckp->poolfee > 0) {
+		/* Pool operator fee takes precedence */
+		double dbl64 = (double)g64 / 100 * ckp->poolfee;
+
+		d64 = dbl64;
+		g64 -= d64; // To guarantee integers add up to the original coinbasevalue
+		wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
+	} else if (ckp->donvalid && ckp->donation > 0) {
+		/* Fallback to donation if no pool fee */
 		double dbl64 = (double)g64 / 100 * ckp->donation;
 
 		d64 = dbl64;
@@ -616,7 +628,16 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 	wb->coinb3len = 0;
 	wb->coinb3bin = ckzalloc(256 + wb->insert_witness * (8 + witnessdata_size + 2));
 
-	if (ckp->donvalid && ckp->donation > 0) {
+	/* Add pool operator fee or donation output */
+	if (ckp->poolvalid && ckp->poolfee > 0) {
+		u64 = (uint64_t *)wb->coinb3bin;
+		*u64 = htole64(d64);
+		wb->coinb3len += 8;
+
+		wb->coinb3bin[wb->coinb3len++] = sdata->pooltxnlen;
+		memcpy(wb->coinb3bin + wb->coinb3len, sdata->pooltxnbin, sdata->pooltxnlen);
+		wb->coinb3len += sdata->pooltxnlen;
+	} else if (ckp->donvalid && ckp->donation > 0) {
 		u64 = (uint64_t *)wb->coinb3bin;
 		*u64 = htole64(d64);
 		wb->coinb3len += 8;
@@ -624,8 +645,10 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		wb->coinb3bin[wb->coinb3len++] = sdata->dontxnlen;
 		memcpy(wb->coinb3bin + wb->coinb3len, sdata->dontxnbin, sdata->dontxnlen);
 		wb->coinb3len += sdata->dontxnlen;
-	} else
+	} else {
 		ckp->donation = 0;
+		ckp->poolfee = 0;
+	}
 
 	if (wb->insert_witness) {
 		// 0 value
@@ -684,7 +707,9 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 			free(cb);
 			ckp->coinbase_valid = true;
 			LOGWARNING("Mining from any incoming username to address %s", ckp->btcaddress);
-			if (ckp->donation)
+			if (ckp->poolfee > 0 && ckp->poolvalid)
+				LOGWARNING("%.1f percent pool operator fee to %s", ckp->poolfee, ckp->pooladdress);
+			else if (ckp->donation)
 				LOGWARNING("%.1f percent donation to %s", ckp->donation, ckp->donaddress);
 		}
 	} else if (unlikely(!ckp->coinbase_valid)) {
@@ -8687,6 +8712,18 @@ void *stratifier(void *arg)
 			LOGNOTICE("BTC regtest donation address valid %s", ckp->donaddress);
 		} else
 			LOGNOTICE("No valid donation address found");
+
+		/* Validate pool operator fee address */
+		if (ckp->pooladdress && ckp->poolfee > 0) {
+			if (generator_checkaddr(ckp, ckp->pooladdress, &ckp->poolscript, &ckp->poolsegwit)) {
+				ckp->poolvalid = true;
+				sdata->pooltxnlen = address_to_txn(sdata->pooltxnbin, ckp->pooladdress, ckp->poolscript, ckp->poolsegwit);
+				LOGNOTICE("Pool operator fee address valid %s (%.1f%%)", ckp->pooladdress, ckp->poolfee);
+			} else {
+				LOGWARNING("Pool fee address %s is invalid, disabling pool fee", ckp->pooladdress);
+				ckp->poolfee = 0;
+			}
+		}
 	}
 
 	randomiser = time(NULL);

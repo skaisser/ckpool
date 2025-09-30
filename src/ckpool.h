@@ -245,6 +245,11 @@ struct ckpool_instance {
 	char *btcaddress; // Address to mine to
 	bool script; // Address is a script address
 	bool segwit; // Address is a segwit address
+	char *pooladdress; // Pool operator fee address
+	bool poolscript; // Pool address is a script address
+	bool poolsegwit; // Pool address is segwit
+	bool poolvalid; // Pool address is valid
+	double poolfee; // Pool operator fee percentage
 	char *btcsig; // Optional signature to add to coinbase
 	bool coinbase_valid; // Coinbase transaction confirmed valid
 
