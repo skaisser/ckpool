@@ -138,18 +138,30 @@ This is not just a simple fork. EloPool has been **extensively modified** for Bi
 
 ## 🛠️ Installation
 
-### Quick Install (Production)
+### Quick Install (Production - Recommended)
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone https://github.com/skaisser/ckpool.git
 cd ckpool
 
-# Run the installer
+# 2. Install dependencies and build
 ./install-ckpool.sh
+
+# 3. Configure your pool settings
+nano ~/ckpool/ckpool.conf
+# Edit: btcaddress, pooladdress, poolfee, btcd credentials
+
+# 4. Set up systemd service and firewall (requires sudo)
+sudo ./post-install.sh
 ```
 
-### Development/Testing Install
+**What each script does:**
+
+- **`install-ckpool.sh`** - Checks dependencies, builds CKPool, creates configs
+- **`post-install.sh`** - Creates systemd service, configures firewall, enables auto-start
+
+### Manual Install (Development/Testing)
 
 ```bash
 # Clone the repository
@@ -162,6 +174,8 @@ cd ckpool
 make
 sudo make install
 ```
+
+**Note:** Manual install does not create systemd service or configure firewall. You'll need to run `post-install.sh` separately or manage the service manually.
 
 ## ⚙️ Configuration
 
@@ -414,36 +428,71 @@ sudo ufw allow 3333/tcp comment 'Stratum mining port'
 
 ## 🏃 Running the Pool
 
-### Start the Pool
+### Option 1: Systemd Service (Recommended for Production)
+
+After running `post-install.sh`, manage the pool as a system service:
 
 ```bash
+# Start the pool
+sudo systemctl start ckpool
+
+# Stop the pool
+sudo systemctl stop ckpool
+
+# Restart the pool
+sudo systemctl restart ckpool
+
+# Check status
+sudo systemctl status ckpool
+
+# View live logs
+sudo journalctl -u ckpool -f
+
+# Enable auto-start on boot
+sudo systemctl enable ckpool
+
+# Disable auto-start
+sudo systemctl disable ckpool
+```
+
+**Testnet Service:**
+```bash
+# Same commands but replace 'ckpool' with 'ckpool-testnet'
+sudo systemctl start ckpool-testnet
+sudo journalctl -u ckpool-testnet -f
+```
+
+### Option 2: Manual Scripts (Testing/Development)
+
+```bash
+# Start the pool
 cd ~/ckpool
 ./start-ckpool.sh
 
-# Or with systemd
-sudo systemctl start ckpool
+# Stop the pool
+./stop-ckpool.sh
+
+# View logs
+tail -f ~/ckpool/logs/ckpool.log
 ```
 
 ### Monitor Operations
 
 ```bash
-# View logs
-tail -f ~/ckpool/logs/ckpool.log
-
-# Check statistics
+# Pool statistics
 ./ckpmsg -s /tmp/ckpool/stratifier stats
 
-# View connected workers
+# User information
 ./ckpmsg -s /tmp/ckpool/stratifier users
-```
 
-### Stop the Pool
+# Worker details
+./ckpmsg -s /tmp/ckpool/stratifier workers
 
-```bash
-./stop-ckpool.sh
+# View logs (systemd)
+sudo journalctl -u ckpool -f --lines=100
 
-# Or with systemd
-sudo systemctl stop ckpool
+# View logs (manual)
+tail -f ~/ckpool/logs/ckpool.log
 ```
 
 ## 🔧 Troubleshooting
