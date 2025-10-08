@@ -145,12 +145,12 @@ Description=CKPool - Bitcoin Cash Mining Pool
 After=network.target
 
 [Service]
-Type=forking
+Type=simple
 User=$ACTUAL_USER
 Group=$ACTUAL_USER
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/ckpool -c $INSTALL_DIR/ckpool.conf
-ExecStop=/usr/bin/pkill -TERM ckpool
+ExecStart=$INSTALL_DIR/ckpool -c $INSTALL_DIR/ckpool.conf -L
+ExecStop=/bin/kill -TERM \$MAINPID
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -159,9 +159,9 @@ SyslogIdentifier=ckpool
 
 # Security settings
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
+PrivateTmp=false
+ProtectSystem=false
+ProtectHome=false
 ReadWritePaths=$INSTALL_DIR/logs $INSTALL_DIR/users $INSTALL_DIR/pool $INSTALL_DIR/data /tmp/ckpool
 
 # Resource limits
@@ -185,12 +185,12 @@ Description=CKPool Testnet - Bitcoin Cash Mining Pool (Testnet)
 After=network.target
 
 [Service]
-Type=forking
+Type=simple
 User=$ACTUAL_USER
 Group=$ACTUAL_USER
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/ckpool -c $INSTALL_DIR/ckpool-testnet.conf
-ExecStop=/usr/bin/pkill -TERM -f "ckpool.*testnet"
+ExecStart=$INSTALL_DIR/ckpool -c $INSTALL_DIR/ckpool-testnet.conf -L
+ExecStop=/bin/kill -TERM \$MAINPID
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -199,9 +199,9 @@ SyslogIdentifier=ckpool-testnet
 
 # Security settings
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
+PrivateTmp=false
+ProtectSystem=false
+ProtectHome=false
 ReadWritePaths=$INSTALL_DIR/logs $INSTALL_DIR/users $INSTALL_DIR/pool $INSTALL_DIR/data /tmp/ckpool-testnet
 
 # Resource limits
