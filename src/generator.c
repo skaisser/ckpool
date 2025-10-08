@@ -382,13 +382,27 @@ bool generator_get_blockhash(ckpool_t *ckp, int height, char *hash)
 	gdata_t *gdata = ckp->gdata;
 	server_instance_t *si;
 	connsock_t *cs;
+	bool ret;
 
 	if (unlikely(!(si = gdata->current_si))) {
 		LOGWARNING("No live current server in generator_get_blockhash");
 		return false;
 	}
 	cs = &si->cs;
-	return get_blockhash(cs, height, hash);
+	ret = get_blockhash(cs, height, hash);
+
+	if (unlikely(!ret)) {
+		LOGWARNING("Failed to get blockhash from %s:%s", cs->url, cs->port);
+		si->alive = cs->alive = false;
+
+		/* Immediately failover to a live server */
+		si = live_server(ckp, gdata);
+		if (si) {
+			reconnect_generator(ckp);
+		}
+	}
+
+	return ret;
 }
 
 static void gen_loop(proc_instance_t *pi)
@@ -912,6 +926,13 @@ int generator_getbest(ckpool_t *ckp, char *hash)
 	cs = &si->cs;
 	if (unlikely(!get_bestblockhash(cs, hash))) {
 		LOGWARNING("Failed to get best block hash from %s:%s", cs->url, cs->port);
+		si->alive = cs->alive = false;
+
+		/* Immediately failover to a live server */
+		si = live_server(ckp, gdata);
+		if (si) {
+			reconnect_generator(ckp);
+		}
 		goto out;
 	}
 	ret = GETBEST_SUCCESS;
@@ -933,6 +954,17 @@ bool generator_checkaddr(ckpool_t *ckp, const char *addr, bool *script, bool *se
 	}
 	cs = &si->cs;
 	ret = validate_address(cs, addr, script, segwit);
+
+	if (unlikely(!ret)) {
+		LOGWARNING("Failed to validate address at %s:%s", cs->url, cs->port);
+		si->alive = cs->alive = false;
+
+		/* Immediately failover to a live server */
+		si = live_server(ckp, gdata);
+		if (si) {
+			reconnect_generator(ckp);
+		}
+	}
 out:
 	return ret;
 }
