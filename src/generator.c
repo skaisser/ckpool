@@ -879,7 +879,14 @@ struct genwork *generator_getbase(ckpool_t *ckp)
 	if (unlikely(!gen_gbtbase(cs, gbt))) {
 		LOGWARNING("Failed to get block template from %s:%s", cs->url, cs->port);
 		si->alive = cs->alive = false;
-		reconnect_generator(ckp);
+
+		/* Immediately failover to a live server instead of async reconnect
+		 * This prevents retries on the failed server */
+		si = live_server(ckp, gdata);
+		if (si) {
+			reconnect_generator(ckp);
+		}
+
 		dealloc(gbt);
 	}
 out:

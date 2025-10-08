@@ -1508,6 +1508,8 @@ retry:
 	if (unlikely(!wb)) {
 		if (retries++ < 5 || *prio == GEN_PRIORITY) {
 			LOGWARNING("Generator returned failure in update_base, retry #%d", retries);
+			/* Brief delay to allow failover to complete */
+			cksleep_ms(100);
 			goto retry;
 		}
 		LOGWARNING("Generator failed in update_base after retrying");
