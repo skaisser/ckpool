@@ -141,8 +141,10 @@ echo "Creating systemd service..."
 SERVICE_FILE="/etc/systemd/system/ckpool.service"
 cat > "$SERVICE_FILE" << EOF
 [Unit]
-Description=CKPool - Bitcoin Cash Mining Pool
-After=network.target
+Description=CKPool Bitcoin Cash Mining Pool (Custom Fork)
+Documentation=https://github.com/skaisser/ckpool
+After=network.target network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -150,23 +152,27 @@ User=$ACTUAL_USER
 Group=$ACTUAL_USER
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$INSTALL_DIR/ckpool -c $INSTALL_DIR/ckpool.conf -L
-ExecStop=/bin/kill -TERM \$MAINPID
+ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
 RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=ckpool
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Resource limits for high-performance mining
+LimitNOFILE=2100000
+LimitNPROC=32768
+LimitMEMLOCK=infinity
 
 # Security settings
 NoNewPrivileges=true
-PrivateTmp=false
-ProtectSystem=false
-ProtectHome=false
-ReadWritePaths=$INSTALL_DIR/logs $INSTALL_DIR/users $INSTALL_DIR/pool $INSTALL_DIR/data /tmp/ckpool
+PrivateTmp=true
 
-# Resource limits
-LimitNOFILE=1048576
-LimitNPROC=512
+# Environment
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
 
 [Install]
 WantedBy=multi-user.target
@@ -181,8 +187,10 @@ if [ -f "$INSTALL_DIR/ckpool-testnet.conf" ]; then
     TESTNET_SERVICE_FILE="/etc/systemd/system/ckpool-testnet.service"
     cat > "$TESTNET_SERVICE_FILE" << EOF
 [Unit]
-Description=CKPool Testnet - Bitcoin Cash Mining Pool (Testnet)
-After=network.target
+Description=CKPool Bitcoin Cash Mining Pool (Testnet - Custom Fork)
+Documentation=https://github.com/skaisser/ckpool
+After=network.target network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -190,23 +198,27 @@ User=$ACTUAL_USER
 Group=$ACTUAL_USER
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$INSTALL_DIR/ckpool -c $INSTALL_DIR/ckpool-testnet.conf -L
-ExecStop=/bin/kill -TERM \$MAINPID
+ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
 RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=ckpool-testnet
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Resource limits for high-performance mining
+LimitNOFILE=2100000
+LimitNPROC=32768
+LimitMEMLOCK=infinity
 
 # Security settings
 NoNewPrivileges=true
-PrivateTmp=false
-ProtectSystem=false
-ProtectHome=false
-ReadWritePaths=$INSTALL_DIR/logs $INSTALL_DIR/users $INSTALL_DIR/pool $INSTALL_DIR/data /tmp/ckpool-testnet
+PrivateTmp=true
 
-# Resource limits
-LimitNOFILE=1048576
-LimitNPROC=512
+# Environment
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
 
 [Install]
 WantedBy=multi-user.target
