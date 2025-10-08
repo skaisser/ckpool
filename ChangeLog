@@ -59,6 +59,39 @@ This fork transforms CKPool into a production-ready Bitcoin Cash solo mining poo
 
 ## Recent Updates (Latest First)
 
+### v1.1.0 (2025-10-08) - Production Deployment Suite
+**Enterprise-Grade Multi-Node Failover**
+- ⚡ **Instant failover** - Single failure triggers failover (~100ms vs 4+ seconds)
+- ⚡ **Sync-aware failover** - Stays on backup while primary node is syncing
+- ⚡ **Automatic recovery** - Intelligently fails back to primary when ready
+- 🐛 Fixed synchronous failover preventing retry of failed servers
+- 🐛 Added forward declaration for reconnect_generator to fix build errors
+- 📚 Comprehensive multi-node redundancy documentation with real production logs
+
+**Production Deployment Tools**
+- ✨ Added `post-install.sh` - Systemd service installer with firewall configuration
+- ✨ Added `monitor.sh` - Matrix-style colorized log viewer with real-time monitoring
+- ✨ Added `clean-old-blocks.sh` - Automatic cleanup of old block directories
+- 🔧 Auto-detection of stratum ports from config files
+- 🔧 UFW firewall integration with automatic port configuration
+- 🔧 Systemd service with production-grade resource limits
+- 🔧 Automatic cron job setup for maintenance tasks
+
+**Systemd Service Enhancements**
+- 🔧 Updated to production-tested configuration
+- 🔧 Added network-online.target for better network reliability
+- 🔧 ExecReload with HUP signal for graceful reloads
+- 🔧 Higher resource limits (2.1M NOFILE, 32K NPROC, unlimited MEMLOCK)
+- 🔧 Proper timeout values (60s start, 30s stop)
+- 🔧 KillMode=mixed and KillSignal=SIGTERM for clean shutdown
+- 📚 Documentation field pointing to GitHub repository
+
+**Installation & Dependencies**
+- 🐛 Added dependency checking to install-ckpool.sh
+- 🔧 Auto-detection of OS (Ubuntu/Debian)
+- 🔧 Automatic dependency installation prompts
+- 📚 Updated installation and service management documentation
+
 ### 2025 - Production Optimizations
 - 📚 Emphasized 66 mainnet blocks in production achievements
 - 📚 Moved comparison table to top of README
