@@ -1,4 +1,83 @@
-See git repository ('git log') for full changelog.
+# CKPool Changelog
 
-Git repository can be found at:
-https://bitbucket.org/ckolivas/ckpool-solo
+## EloPool Fork - Production Features & Improvements
+
+This fork transforms CKPool into a production-ready Bitcoin Cash solo mining pool with significant enhancements for modern ASIC mining operations.
+
+## Production Achievements
+- **66 mainnet blocks** successfully mined on Bitcoin Cash network
+- Battle-tested with major mining services (NiceHash, MiningRigRentals)
+- Production deployment handling industrial ASIC miners
+
+## Major Features
+
+### Bitcoin Cash Support
+- ✨ Full CashAddr support for BCH addresses (mainnet/testnet/regtest)
+- ✨ Multi-node ZMQ support for faster block detection
+- 🐛 Fixed BCH-specific getblocktemplate compatibility (removed segwit)
+- 🔧 Automatic network detection (mainnet/testnet/regtest)
+
+### Mining Enhancements
+- ✨ **Multi-difficulty support** with password and pattern matching
+- ✨ **NiceHash compatibility** with automatic difficulty adjustment
+- ✨ **User-agent based difficulty** detection for rental services
+- ✨ **Pool operator fee** with dual-output coinbase splitting
+- ✨ **Dynamic per-user coinbase messages** via btcsig
+- ⚡ Optimized share validation logic
+
+### Installation & Configuration
+- ✨ Interactive installation script with mainnet/testnet configs
+- ✨ Unified build system with cross-platform support
+- 🔧 Auto-detection of BCH nodes from config
+- 📚 Comprehensive API documentation for ckpmsg
+
+### Bug Fixes & Improvements
+- 🐛 Fixed critical share validation logic
+- 🐛 Corrected CashAddr 5-bit to 8-bit conversion
+- 🐛 Fixed NiceHash difficulty application with pattern matching
+- 🐛 Resolved format specifier warnings
+- 🐛 Fixed ZMQ subscription string length issues
+- ⚡ Performance optimizations for share acceptance
+
+### Lean Blocks Feature (Experimental)
+- ✨ Dual submit for maximum block discovery
+- 📚 Comprehensive documentation for lean blocks mode
+- 🔧 Test and production configs included
+
+### Documentation
+- 📚 Complete rewrite of README with production features
+- 📚 Added CKPool API guide
+- 📚 Ubuntu deployment guides
+- 📚 Regtest testing documentation
+- ⚠️ Critical issue tracking and resolution
+
+### Code Quality
+- 🧹 Repository cleanup - removed unused files
+- ♻️ Modernized installer scripts
+- 🧹 Removed deprecated donation addresses
+- 🔧 Updated .gitignore for build artifacts
+
+## Recent Updates (Latest First)
+
+### 2025 - Production Optimizations
+- 📚 Emphasized 66 mainnet blocks in production achievements
+- 📚 Moved comparison table to top of README
+- 🧹 Removed unused cashaddr.cpp files
+- ⚡ Only reject shares below pool mindiff
+- 🐛 Removed false CashAddr warnings
+
+### 2024 - Core Development
+- Complete Bitcoin Cash compatibility implementation
+- Multi-difficulty system for rental services
+- Interactive installation system
+- Pool fee implementation
+- CashAddr address format support
+
+## Legacy CKPool Base
+
+Built upon the solid foundation of CKPool by Con Kolivas, maintaining core stability while adding modern features required for production Bitcoin Cash mining operations.
+
+For detailed commit history, see: https://github.com/skaisser/ckpool
+
+---
+*Note: This changelog represents significant changes since forking from the original CKPool project. For the complete commit history, use `git log`.*

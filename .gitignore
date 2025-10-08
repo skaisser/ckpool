@@ -40,4 +40,5 @@ ltmain.sh
 
 libtool
 
-
+# macOS
+.DS_Store

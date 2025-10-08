@@ -22,6 +22,112 @@ if [ "$EUID" -eq 0 ]; then
    exit 1
 fi
 
+# Detect OS
+OS="unknown"
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    OS="linux"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    OS="mac"
+fi
+
+# Check and install dependencies
+echo "Checking dependencies..."
+MISSING_DEPS=()
+
+check_command() {
+    if ! command -v "$1" &> /dev/null; then
+        MISSING_DEPS+=("$1")
+        return 1
+    fi
+    return 0
+}
+
+# Required build tools
+check_command autoconf || true
+check_command automake || true
+check_command libtool || true
+check_command make || true
+check_command gcc || true
+check_command pkg-config || true
+
+# Optional but recommended
+check_command yasm || true
+
+# Check for required libraries
+check_library() {
+    if [[ "$OS" == "linux" ]]; then
+        if ! ldconfig -p | grep -q "$1"; then
+            return 1
+        fi
+    elif [[ "$OS" == "mac" ]]; then
+        if ! brew list --formula | grep -q "$2"; then
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# Check libraries
+if [[ "$OS" == "linux" ]]; then
+    check_library "libzmq" && true || MISSING_DEPS+=("libzmq-dev")
+    check_library "libssl" && true || MISSING_DEPS+=("libssl-dev")
+elif [[ "$OS" == "mac" ]]; then
+    check_library "" "zeromq" && true || MISSING_DEPS+=("zeromq")
+    check_library "" "openssl" && true || MISSING_DEPS+=("openssl")
+fi
+
+if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
+    echo -e "${YELLOW}Missing dependencies detected: ${MISSING_DEPS[*]}${NC}"
+    echo
+
+    if [[ "$OS" == "linux" ]]; then
+        echo "Install with:"
+        if command -v apt-get &> /dev/null; then
+            echo "  sudo apt-get update"
+            echo "  sudo apt-get install -y build-essential autoconf automake libtool pkg-config libzmq3-dev libssl-dev yasm"
+        elif command -v yum &> /dev/null; then
+            echo "  sudo yum groupinstall 'Development Tools'"
+            echo "  sudo yum install -y autoconf automake libtool pkgconfig zeromq-devel openssl-devel yasm"
+        fi
+    elif [[ "$OS" == "mac" ]]; then
+        echo "Install with Homebrew:"
+        echo "  brew install autoconf automake libtool pkg-config zeromq openssl yasm"
+    fi
+
+    echo
+    read -p "Would you like to install these dependencies now? (y/n) " -n 1 -r
+    echo
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if [[ "$OS" == "linux" ]]; then
+            if command -v apt-get &> /dev/null; then
+                sudo apt-get update
+                sudo apt-get install -y build-essential autoconf automake libtool pkg-config libzmq3-dev libssl-dev yasm
+            elif command -v yum &> /dev/null; then
+                sudo yum groupinstall -y 'Development Tools'
+                sudo yum install -y autoconf automake libtool pkgconfig zeromq-devel openssl-devel yasm
+            else
+                echo -e "${RED}Unsupported package manager. Please install dependencies manually.${NC}"
+                exit 1
+            fi
+        elif [[ "$OS" == "mac" ]]; then
+            if ! command -v brew &> /dev/null; then
+                echo -e "${RED}Homebrew not found. Please install from https://brew.sh${NC}"
+                exit 1
+            fi
+            brew install autoconf automake libtool pkg-config zeromq openssl yasm
+        fi
+        echo -e "${GREEN}✓ Dependencies installed${NC}"
+    else
+        echo -e "${RED}Cannot proceed without dependencies${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}✓ All dependencies satisfied${NC}"
+fi
+
+echo
+
 # Prompt for installation directory
 echo -e "${YELLOW}Where would you like to install CKPool?${NC}"
 read -e -p "Installation directory (default: $HOME/ckpool): " USER_INSTALL_DIR
