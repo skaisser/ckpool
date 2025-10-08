@@ -377,6 +377,8 @@ void generator_preciousblock(ckpool_t *ckp, const char *hash)
 	precious_block(cs, hash);
 }
 
+static void reconnect_generator(ckpool_t *ckp);
+
 bool generator_get_blockhash(ckpool_t *ckp, int height, char *hash)
 {
 	gdata_t *gdata = ckp->gdata;
