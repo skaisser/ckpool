@@ -40,10 +40,24 @@ bool validate_address(connsock_t *cs, const char *address, bool *script, bool *s
 	uint8_t hash160[20];
 	bool is_cashaddr = false;
 	bool is_p2sh = false;
+	char prefixed_addr[128];
 
 	if (unlikely(!address)) {
 		LOGWARNING("Null address passed to validate_address");
 		return ret;
+	}
+
+	/* AUTO-PREFIX FIX (SoloFury 2026-04-23):
+	 * Bare CashAddr starts with 'q' or 'p' and is 42 chars long.
+	 * Add the bitcoincash: prefix automatically so the decoder
+	 * can validate it correctly. */
+	if ((address[0] == 'q' || address[0] == 'p' ||
+	     address[0] == 'Q' || address[0] == 'P') &&
+	    strchr(address, ':') == NULL && strlen(address) >= 42) {
+		snprintf(prefixed_addr, sizeof(prefixed_addr),
+		         "bitcoincash:%s", address);
+		address = prefixed_addr;
+		LOGINFO("Auto-prefixed bare CashAddr in validate_address: %s", address);
 	}
 
 	/* Check if it's a CashAddr format */
