@@ -301,6 +301,10 @@ struct stratum_instance {
 	bool passthrough; /* Is this a passthrough */
 	bool trusted; /* Is this a trusted remote server */
 	bool remote; /* Is this a remote client on a trusted remote server */
+
+	bool rental_diff; /* Difficulty already applied from useragent-based rental
+			    * service detection (NiceHash/MiningRigRentals), so the
+			    * mindiff_overrides pattern loop must not clobber it */
 };
 
 struct share {
@@ -4979,6 +4983,7 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 		/* Apply NiceHash difficulty immediately */
 		client->suggest_diff = nicehash_diff;
 		client->diff = client->old_diff = nicehash_diff;
+		client->rental_diff = true;
 		LOGNOTICE("NiceHash detected from useragent '%s' for client %s, applied difficulty %ld",
 			client->useragent, client->identity, nicehash_diff);
 	} else if (strcasestr(client->useragent, "miningrigrentals")) {
@@ -4999,6 +5004,7 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 		/* Apply MiningRigRentals difficulty immediately */
 		client->suggest_diff = mrr_diff;
 		client->diff = client->old_diff = mrr_diff;
+		client->rental_diff = true;
 		LOGNOTICE("MiningRigRentals detected from useragent '%s' for client %s, applied difficulty %ld",
 			client->useragent, client->identity, mrr_diff);
 	}
@@ -5645,8 +5651,16 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 	 * till after this point */
 	client->workername = strdup(buf);
 
-	/* First check for mindiff overrides based on workername patterns */
-	if (ckp->mindiff_overrides && json_is_object(ckp->mindiff_overrides)) {
+	/* First check for mindiff overrides based on workername patterns.
+	 * Skipped entirely for rental service clients (NiceHash/MiningRigRentals)
+	 * already handled by useragent detection in parse_subscribe(): with
+	 * BCH-address usernames a short override key (e.g. "s9") can
+	 * substring-match inside the address and clobber the rental service's
+	 * already-applied difficulty, causing NiceHash to reject the rig. */
+	if (client->rental_diff) {
+		LOGINFO("Client %s workername '%s' skipping mindiff_overrides pattern loop, rental difficulty already applied",
+			client->identity, client->workername);
+	} else if (ckp->mindiff_overrides && json_is_object(ckp->mindiff_overrides)) {
 		const char *pattern;
 		json_t *diff_val;
 
