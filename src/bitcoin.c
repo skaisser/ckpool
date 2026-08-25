@@ -37,7 +37,9 @@ static bool check_required_rule(const char* rule)
  * momentarily unreachable at authorize time. cs is kept for signature
  * compatibility with existing callers; it is unused on the classified
  * path. BCH has no segwit, so *segwit always comes back false (the
- * parameter itself is not removed here -- see Phase 7). */
+ * parameter itself is not removed here: its prototype lives in
+ * bitcoin.h/generator.h, outside this cleanup's file scope -- the
+ * always-false storage it feeds was removed from the callers instead). */
 bool validate_address(connsock_t *cs, const char *address, bool *script, bool *segwit)
 {
 	uint8_t hash160[20];

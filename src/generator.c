@@ -262,6 +262,9 @@ static bool server_alive(ckpool_t *ckp, server_instance_t *si, bool pinging)
 	connsock_t *cs;
 	gbtbase_t gbt;
 	int fd;
+	/* segwit is always false on BCH; ckp no longer stores it (Phase 7),
+	 * so a throwaway local receives validate_address()'s output param. */
+	bool segwit_unused;
 
 	if (si->alive)
 		return true;
@@ -304,7 +307,7 @@ static bool server_alive(ckpool_t *ckp, server_instance_t *si, bool pinging)
 	 * (enforced in ckpool.c), so there is no BTC-donation-address
 	 * fallback to adopt here on a BCH-only pool. */
 
-	if (!ckp->node && !validate_address(cs, ckp->btcaddress, &ckp->script, &ckp->segwit)) {
+	if (!ckp->node && !validate_address(cs, ckp->btcaddress, &ckp->script, &segwit_unused)) {
 		LOGWARNING("Invalid btcaddress: %s !", ckp->btcaddress);
 		goto out;
 	}

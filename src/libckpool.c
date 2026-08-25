@@ -1606,43 +1606,6 @@ bool _hex2bin(void *vp, const void *vhexstr, size_t len, const char *file, const
 	return ret;
 }
 
-static const int b58tobin_tbl[] = {
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-	-1,  0,  1,  2,  3,  4,  5,  6,  7,  8, -1, -1, -1, -1, -1, -1,
-	-1,  9, 10, 11, 12, 13, 14, 15, 16, -1, 17, 18, 19, 20, 21, -1,
-	22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, -1, -1, -1, -1, -1,
-	-1, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, -1, 44, 45, 46,
-	47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57
-};
-
-/* b58bin should always be at least 25 bytes long and already checked to be
- * valid. */
-void b58tobin(char *b58bin, const char *b58)
-{
-	uint32_t c, bin32[7];
-	int len, i, j;
-	uint64_t t;
-
-	memset(bin32, 0, 7 * sizeof(uint32_t));
-	len = strlen((const char *)b58);
-	for (i = 0; i < len; i++) {
-		c = b58[i];
-		c = b58tobin_tbl[c];
-		for (j = 6; j >= 0; j--) {
-			t = ((uint64_t)bin32[j]) * 58 + c;
-			c = (t & 0x3f00000000ull) >> 32;
-			bin32[j] = t & 0xffffffffull;
-		}
-	}
-	*(b58bin++) = bin32[0] & 0xff;
-	for (i = 1; i < 7; i++) {
-		*((uint32_t *)b58bin) = htobe32(bin32[i]);
-		b58bin += sizeof(uint32_t);
-	}
-}
-
 /* Does a safe string comparison tolerating zero length and NULL strings */
 int safecmp(const char *a, const char *b)
 {
@@ -1878,7 +1841,11 @@ int bch_address_to_script(char *out, const char *addr, const char *cashaddr_pref
  * any classification failure. script/segwit are retained for existing
  * callers' signature compatibility only: BCH has no segwit, and script
  * type is now derived from the address itself rather than trusted from
- * the caller (removing script/segwit entirely is Phase 7). */
+ * the caller. The signature is kept as-is because validate_address()/
+ * generator_checkaddr() thread the same two params and their prototypes
+ * live in bitcoin.h/generator.h, outside this cleanup's file scope; the
+ * always-false storage that used to feed them was deleted at the call
+ * sites instead. */
 int address_to_txn(char *p2h, const char *addr, const bool script, const bool segwit)
 {
 	(void)script;

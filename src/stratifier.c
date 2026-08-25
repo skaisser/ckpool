@@ -131,7 +131,6 @@ struct user_instance {
 	char *secondaryuserid;
 	bool btcaddress;
 	bool script;
-	bool segwit;
 	/* Set for a solo user whose username did not classify as a BCH
 	 * address: authorised anyway (D2 smart-fallback decision), mining to
 	 * the pool's own btcaddress via a copy of sdata->txnbin/txnlen. */
@@ -397,8 +396,6 @@ struct stratifier_data {
 
 	char txnbin[48];
 	int txnlen;
-	char dontxnbin[48];
-	int dontxnlen;
 	char pooltxnbin[48];
 	int pooltxnlen;
 
@@ -629,13 +626,6 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 			g64 -= d64; // To guarantee integers add up to the original coinbasevalue
 			wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
 		}
-	} else if (ckp->donvalid && ckp->donation > 0) {
-		/* Fallback to donation if no pool fee */
-		double dbl64 = (double)g64 / 100 * ckp->donation;
-
-		d64 = dbl64;
-		g64 -= d64; // To guarantee integers add up to the original coinbasevalue
-		wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
 	} else
 		wb->coinb2bin[wb->coinb2len++] = 1 + wb->insert_witness;
 
@@ -657,20 +647,11 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		wb->coinb3bin[wb->coinb3len++] = sdata->pooltxnlen;
 		memcpy(wb->coinb3bin + wb->coinb3len, sdata->pooltxnbin, sdata->pooltxnlen);
 		wb->coinb3len += sdata->pooltxnlen;
-	} else if (ckp->donvalid && ckp->donation > 0) {
-		u64 = (uint64_t *)wb->coinb3bin;
-		*u64 = htole64(d64);
-		wb->coinb3len += 8;
-
-		wb->coinb3bin[wb->coinb3len++] = sdata->dontxnlen;
-		memcpy(wb->coinb3bin + wb->coinb3len, sdata->dontxnbin, sdata->dontxnlen);
-		wb->coinb3len += sdata->dontxnlen;
 	} else if (!poolfee_dust) {
-		/* Only permanently disable poolfee/donation when neither is
-		 * configured at all. A dust-suppressed poolfee is a
-		 * per-workbase condition (coinbasevalue too small this
-		 * round) and must not disable future, non-dust workbases. */
-		ckp->donation = 0;
+		/* Only permanently disable poolfee when it isn't configured
+		 * at all. A dust-suppressed poolfee is a per-workbase
+		 * condition (coinbasevalue too small this round) and must
+		 * not disable future, non-dust workbases. */
 		ckp->poolfee = 0;
 	}
 
@@ -733,8 +714,6 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 			LOGWARNING("Mining from any incoming username to address %s", ckp->btcaddress);
 			if (ckp->poolfee > 0 && ckp->poolvalid)
 				LOGWARNING("%.1f percent pool operator fee to %s", ckp->poolfee, ckp->pooladdress);
-			else if (ckp->donation)
-				LOGWARNING("%.1f percent donation to %s", ckp->donation, ckp->donaddress);
 		}
 	} else if (unlikely(!ckp->coinbase_valid)) {
 		/* Create a sample coinbase to test its validity in solo mode */
@@ -774,8 +753,6 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		free(cb);
 		ckp->coinbase_valid = true;
 		LOGWARNING("Mining solo to any incoming valid BTC address username");
-		if (ckp->donation)
-			LOGWARNING("%.1f percent donation to %s", ckp->donation, ckp->donaddress);
 	}
 
 	/* Set this just for node compatibility, though it's unused */
@@ -1464,58 +1441,6 @@ out:
 	return txns;
 }
 
-static const unsigned char witness_nonce[32] = {0};
-static const int witness_nonce_size = sizeof(witness_nonce);
-static const unsigned char witness_header[] = {0xaa, 0x21, 0xa9, 0xed};
-static const int witness_header_size = sizeof(witness_header);
-
-static void gbt_witness_data(workbase_t *wb, json_t *txn_array)
-{
-	int i, binlen, txncount = json_array_size(txn_array);
-	const char* hash;
-	json_t *arr_val;
-	uchar *hashbin;
-
-	binlen = txncount * 32 + 32;
-	hashbin = alloca(binlen + 32);
-	memset(hashbin, 0, 32);
-
-	for (i = 0; i < txncount; i++) {
-		char binswap[32];
-
-		arr_val = json_array_get(txn_array, i);
-		hash = json_string_value(json_object_get(arr_val, "hash"));
-		if (unlikely(!hash)) {
-			LOGERR("Hash missing for transaction");
-			return;
-		}
-		if (!hex2bin(binswap, hash, 32)) {
-			LOGERR("Failed to hex2bin hash in gbt_witness_data");
-			return;
-		}
-		bswap_256(hashbin + 32 + 32 * i, binswap);
-	}
-
-	// Build merkle root (copied from libblkmaker)
-	for (txncount++ ; txncount > 1 ; txncount /= 2) {
-		if (txncount % 2) {
-			// Odd number, duplicate the last
-			memcpy(hashbin + 32 * txncount, hashbin + 32 * (txncount - 1), 32);
-			txncount++;
-		}
-		for (i = 0; i < txncount; i += 2) {
-			// We overlap input and output here, on the first pair
-			gen_hash(hashbin + 32 * i, hashbin + 32 * (i / 2), 64);
-		}
-	}
-
-	memcpy(hashbin + 32, &witness_nonce, witness_nonce_size);
-	gen_hash(hashbin, hashbin + witness_header_size, 32 + witness_nonce_size);
-	memcpy(hashbin, witness_header, witness_header_size);
-	__bin2hex(wb->witnessdata, hashbin, 32 + witness_header_size);
-	wb->insert_witness = true;
-}
-
 /* This function assumes it will only receive a valid json gbt base template
  * since checking should have been done earlier, and creates the base template
  * for generating work templates. This is a ckmsgq so all uses of this function
@@ -1552,14 +1477,12 @@ retry:
 
 	wb->insert_witness = false;
 
+	/* BCH's GBT never returns default_witness_commitment (BCH has no
+	 * segwit); if a node ever sends one, warn and ignore it rather than
+	 * building BTC-style witness commitment data. */
 	witnessdata_check = json_string_value(json_object_get(wb->json, "default_witness_commitment"));
-	if (likely(witnessdata_check)) {
-		LOGDEBUG("Default witness commitment present, adding witness data");
-		gbt_witness_data(wb, txn_array);
-		// Verify against the pre-calculated value if it exists. Skip the size/OP_RETURN bytes.
-		if (wb->insert_witness && safecmp(witnessdata_check + 4, wb->witnessdata) != 0)
-			LOGERR("Witness from btcd: %s. Calculated Witness: %s", witnessdata_check + 4, wb->witnessdata);
-	}
+	if (unlikely(witnessdata_check))
+		LOGWARNING("Witness commitment present in GBT - not a BCH node?");
 
 	generate_coinbase(ckp, wb);
 
@@ -2475,7 +2398,6 @@ static sdata_t *duplicate_sdata(const sdata_t *sdata)
 
 	/* Copy the transaction binaries for workbase creation */
 	memcpy(dsdata->txnbin, sdata->txnbin, sizeof(dsdata->txnbin));
-	memcpy(dsdata->dontxnbin, sdata->dontxnbin, sizeof(dsdata->dontxnbin));
 
 	/* Use the same work queues for all subproxies */
 	dsdata->ssends = sdata->ssends;
@@ -5568,7 +5490,6 @@ static user_instance_t *generate_user(ckpool_t *ckp, stratum_instance_t *client,
 			if (txnlen > 0) {
 				user->btcaddress = true;
 				user->script = addr_script;
-				user->segwit = addr_segwit;
 				user->txnlen = txnlen;
 			} else {
 				LOGWARNING("Address %s validated but address_to_txn returned 0 bytes, "
@@ -6173,7 +6094,7 @@ static double submission_diff(sdata_t *sdata, const stratum_instance_t *client, 
 	uchar *coinb2bin, *coinb2scratch;
 	double ret;
 
-	/* Leave ample enough room for donation generation address (~25) + length counter + user generation
+	/* Leave ample enough room for pool fee generation address (~25) + length counter + user generation
 	 * wb->coinb1len + wb->enonce1constlen + wb->enonce1varlen + wb->enonce2varlen + wb->coinb2len + 25 + cb2len */
 
 	coinbase = alloca(1024);
@@ -7209,10 +7130,14 @@ static user_instance_t *generate_remote_user(ckpool_t *ckp, const char *workerna
 	user = get_create_user(sdata, username, &new_user);
 
 	if (!ckp->proxy && (new_user || !user->btcaddress)) {
+		/* segwit is always false on BCH; user_instance no longer
+		 * stores it (Phase 7), so a throwaway local receives it. */
+		bool segwit_unused;
+
 		/* Is this a btc address based username? */
-		if (generator_checkaddr(ckp, username, &user->script, &user->segwit)) {
+		if (generator_checkaddr(ckp, username, &user->script, &segwit_unused)) {
 			user->btcaddress = true;
-			user->txnlen = address_to_txn(user->txnbin, username, user->script, user->segwit);
+			user->txnlen = address_to_txn(user->txnbin, username, user->script, segwit_unused);
 		}
 	}
 	if (new_user) {
@@ -8955,22 +8880,24 @@ void *stratifier(void *arg)
 		cksleep_ms(10);
 
 	if (!ckp->proxy) {
-		if (!generator_checkaddr(ckp, ckp->btcaddress, &ckp->script, &ckp->segwit)) {
+		/* segwit is always false on BCH; ckp no longer stores it
+		 * (Phase 7), so throwaway locals receive the output params. */
+		bool segwit_unused, poolsegwit_unused;
+
+		if (!generator_checkaddr(ckp, ckp->btcaddress, &ckp->script, &segwit_unused)) {
 			LOGEMERG("Fatal: btcaddress invalid according to bitcoind");
 			goto out;
 		}
 
 		/* Store this for use elsewhere */
 		hex2bin(scriptsig_header_bin, scriptsig_header, 41);
-		sdata->txnlen = address_to_txn(sdata->txnbin, ckp->btcaddress, ckp->script, ckp->segwit);
-
-		/* Donation feature removed - no longer checking donation addresses */
+		sdata->txnlen = address_to_txn(sdata->txnbin, ckp->btcaddress, ckp->script, segwit_unused);
 
 		/* Validate pool operator fee address */
 		if (ckp->pooladdress && ckp->poolfee > 0) {
-			if (generator_checkaddr(ckp, ckp->pooladdress, &ckp->poolscript, &ckp->poolsegwit)) {
+			if (generator_checkaddr(ckp, ckp->pooladdress, &ckp->poolscript, &poolsegwit_unused)) {
 				ckp->poolvalid = true;
-				sdata->pooltxnlen = address_to_txn(sdata->pooltxnbin, ckp->pooladdress, ckp->poolscript, ckp->poolsegwit);
+				sdata->pooltxnlen = address_to_txn(sdata->pooltxnbin, ckp->pooladdress, ckp->poolscript, poolsegwit_unused);
 				LOGNOTICE("Pool operator fee address valid %s (%.1f%%)", ckp->pooladdress, ckp->poolfee);
 			} else {
 				LOGWARNING("Pool fee address %s is invalid, disabling pool fee", ckp->pooladdress);
