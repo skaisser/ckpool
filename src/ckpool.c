@@ -1447,7 +1447,15 @@ static void parse_config(ckpool_t *ckp)
 		if (arr_size)
 			parse_btcds(ckp, arr_val, arr_size);
 	}
-	json_get_string(&ckp->btcaddress, json_conf, "btcaddress");
+	/* This is a BCH-only pool, so the preferred operator-facing config
+	 * key is "bchaddress". "btcaddress" is kept as a backward-compatible
+	 * alias -- production configs still use it -- and is only consulted
+	 * when "bchaddress" is absent. The internal struct field name stays
+	 * ckp->btcaddress. */
+	if (!json_get_string(&ckp->btcaddress, json_conf, "bchaddress")) {
+		if (json_get_string(&ckp->btcaddress, json_conf, "btcaddress"))
+			LOGNOTICE("Config key 'btcaddress' is deprecated, please use 'bchaddress' instead");
+	}
 	json_get_string(&ckp->pooladdress, json_conf, "pooladdress");
 	json_get_double(&ckp->poolfee, json_conf, "poolfee");
 	json_get_string(&ckp->btcsig, json_conf, "btcsig");
@@ -1776,7 +1784,9 @@ int main(int argc, char **argv)
 	ckp.rtdonaddress = "bcrt1qlk935ze2fsu86zjp395uvtegztrkaezawxx0wf";
 
 	if (!ckp.btcaddress && !ckp.btcsolo && !ckp.proxy)
-		quit(0, "Non solo mining must have a btcaddress in config, aborting!");
+		quit(0, "Non solo mining must have a bchaddress in config, aborting!");
+	if (!ckp.btcaddress && ckp.btcsolo)
+		quit(0, "Solo BCH mining (-B) must have a bchaddress in config, aborting!");
 	if (!ckp.blockpoll)
 		ckp.blockpoll = 100;
 	if (!ckp.nonce1length)

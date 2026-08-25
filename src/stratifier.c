@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <math.h>
@@ -131,6 +132,10 @@ struct user_instance {
 	bool btcaddress;
 	bool script;
 	bool segwit;
+	/* Set for a solo user whose username did not classify as a BCH
+	 * address: authorised anyway (D2 smart-fallback decision), mining to
+	 * the pool's own btcaddress via a copy of sdata->txnbin/txnlen. */
+	bool pool_fallback;
 
 	/* A linked list of all connected instances of this user */
 	stratum_instance_t *clients;
@@ -1044,7 +1049,10 @@ static void generate_userwbs(sdata_t *sdata, workbase_t *wb)
 
 	ck_wlock(&sdata->instance_lock);
 	HASH_ITER(hh, sdata->user_instances, instance, tmp) {
-		if (!instance->btcaddress)
+		/* Cover both real address users and pool-fallback users
+		 * (decision D2) -- both have a valid txnbin/txnlen to splice
+		 * into their per-user coinb2. */
+		if (!instance->txnlen)
 			continue;
 		__generate_userwb(sdata, wb, instance);
 	}
@@ -5416,6 +5424,61 @@ static worker_instance_t *get_worker(sdata_t *sdata, user_instance_t *user, cons
 	return get_create_worker(sdata, user, workername, &dummy);
 }
 
+/* Decision D2 (smart fallback): true when username is "address-shaped" --
+ * it looks like an attempted BCH address even if it turns out not to
+ * validate. Covers an explicit cashaddr prefix, a bare-cashaddr length and
+ * charset, or a legacy Base58Check leading version character, length and
+ * charset. Deliberately conservative: it must not match ordinary worker
+ * names such as "rig01", "skaisser" or "worker". Used by the solo auth
+ * gate to distinguish a typo'd address (reject with an explicit error)
+ * from a genuinely non-address username (pool-fallback authorize). */
+static bool looks_like_address(const char *username)
+{
+	static const char cashaddr_charset[] = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+	static const char b58_charset[] =
+		"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+	size_t len, i;
+
+	if (!username)
+		return false;
+	len = strlen(username);
+	if (!len)
+		return false;
+
+	if (!strncasecmp(username, "bitcoincash:", 12) ||
+	    !strncasecmp(username, "bchtest:", 8) ||
+	    !strncasecmp(username, "bchreg:", 7))
+		return true;
+
+	if (len == 42) {
+		bool all_cashaddr = true;
+
+		for (i = 0; i < len; i++) {
+			if (!strchr(cashaddr_charset, tolower((unsigned char)username[i]))) {
+				all_cashaddr = false;
+				break;
+			}
+		}
+		if (all_cashaddr)
+			return true;
+	}
+
+	if ((username[0] == '1' || username[0] == '3') && len >= 25 && len <= 36) {
+		bool all_b58 = true;
+
+		for (i = 0; i < len; i++) {
+			if (!strchr(b58_charset, username[i])) {
+				all_b58 = false;
+				break;
+			}
+		}
+		if (all_b58)
+			return true;
+	}
+
+	return false;
+}
+
 /* This simply strips off the first part of the workername and matches it to a
  * user or creates a new one. Needs to be entered with client holding a ref
  * count. */
@@ -5424,6 +5487,7 @@ static user_instance_t *generate_user(ckpool_t *ckp, stratum_instance_t *client,
 {
 	char *base_username = strdupa(workername), *username;
 	bool new_user = false, new_worker = false;
+	bool addr_valid = false, addr_script = false, addr_segwit = false;
 	sdata_t *sdata = ckp->sdata;
 	worker_instance_t *worker;
 	user_instance_t *user;
@@ -5435,6 +5499,22 @@ static user_instance_t *generate_user(ckpool_t *ckp, stratum_instance_t *client,
 	len = strlen(username);
 	if (unlikely(len > 127))
 		username[127] = '\0';
+
+	/* Classify the already-split username as a BCH address before user
+	 * lookup -- Phase 2 made this fully local (no RPC round trip), so
+	 * doing it here is cheap. This lets us normalize cashaddr usernames
+	 * to lowercase up front: "BITCOINCASH:QQ...", an uppercase bare
+	 * cashaddr, and the canonical lowercase form must all resolve to the
+	 * same user account instead of silently creating duplicates. Legacy
+	 * Base58Check addresses are case-significant and are left untouched. */
+	if (!ckp->proxy)
+		addr_valid = generator_checkaddr(ckp, username, &addr_script, &addr_segwit);
+	if (addr_valid && (strchr(username, ':') || strlen(username) == 42)) {
+		char *p;
+
+		for (p = username; *p; p++)
+			*p = tolower((unsigned char)*p);
+	}
 
 	user = get_create_user(sdata, username, &new_user);
 	worker = get_create_worker(sdata, user, workername, &new_worker);
@@ -5449,10 +5529,36 @@ static user_instance_t *generate_user(ckpool_t *ckp, stratum_instance_t *client,
 	ck_wunlock(&sdata->instance_lock);
 
 	if (!ckp->proxy && (new_user || !user->btcaddress)) {
-		/* Is this a btc address based username? */
-		if (generator_checkaddr(ckp, username, &user->script, &user->segwit)) {
-			user->btcaddress = true;
-			user->txnlen = address_to_txn(user->txnbin, username, user->script, user->segwit);
+		if (addr_valid) {
+			int txnlen = address_to_txn(user->txnbin, username, addr_script, addr_segwit);
+
+			if (txnlen > 0) {
+				user->btcaddress = true;
+				user->script = addr_script;
+				user->segwit = addr_segwit;
+				user->txnlen = txnlen;
+			} else {
+				LOGWARNING("Address %s validated but address_to_txn returned 0 bytes, "
+					   "treating as not an address", username);
+				addr_valid = false;
+			}
+		}
+		/* Solo BCH mining, smart fallback (decision D2): a username
+		 * that is not a valid address but is address-shaped (a typo)
+		 * is left to the auth gate in parse_authorise() to reject
+		 * with an explicit error; any other non-address username
+		 * mines to the pool's own btcaddress. */
+		if (!addr_valid && ckp->btcsolo) {
+			if (looks_like_address(username)) {
+				LOGWARNING("Username %s looks like a BCH address but failed validation",
+					   username);
+			} else if (!user->pool_fallback) {
+				memcpy(user->txnbin, sdata->txnbin, sizeof(user->txnbin));
+				user->txnlen = sdata->txnlen;
+				user->pool_fallback = true;
+				LOGNOTICE("User %s is not a BCH address, mining to pool address",
+					  username);
+			}
 		}
 	}
 	if (new_user) {
@@ -5663,8 +5769,18 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 			goto out;
 		}
 	}
-	if (!ckp->btcsolo || client->user_instance->btcaddress)
+	/* Three-way solo auth gate (decision D2): a real address-based user
+	 * or a pool-fallback user (username classified in generate_user() as
+	 * not address-shaped) is authorized. The remaining case -- solo,
+	 * neither btcaddress nor pool_fallback -- only happens when the
+	 * username looked like an attempted address but failed validation;
+	 * reject it with an explicit error instead of the generic auth
+	 * failure message so a typo is obvious to the miner. */
+	if (!ckp->btcsolo || user->btcaddress || user->pool_fallback)
 		ret = true;
+	else if (looks_like_address(user->username))
+		*err_val = json_string("Invalid BCH address (bad checksum or wrong network) - "
+					"check your username for typos");
 
 	/* We do the preauth etc. in remote mode, and leave final auth to
 	 * upstream pool to complete. */
@@ -5951,8 +6067,17 @@ test_blocksolve(const stratum_instance_t *client, const workbase_t *wb, const uc
 	json_decref(val);
 }
 
-/* Entered with instance_lock held */
-static inline uchar *__user_coinb2(const stratum_instance_t *client, const workbase_t *wb, int *cb2len)
+/* Entered with instance_lock held. In solo mode every authorised client has
+ * a userwb generated for it (address users, and pool-fallback users per
+ * decision D2) before it can receive work, so the missing-userwb case here
+ * should not normally happen; if it somehow does, wb->coinb2bin/coinb2len
+ * alone is NOT a safe fallback in solo mode -- that raw template's
+ * output-count byte says 2 but carries no output scripts at all, i.e. a
+ * malformed coinbase. Splice the pool's own output script (sdata->txnbin)
+ * into the caller-provided scratch buffer instead. scratch must be sized
+ * at least wb->coinb2len + 1 + sdata->txnlen + wb->coinb3len. */
+static inline uchar *__user_coinb2(sdata_t *sdata, const stratum_instance_t *client,
+				    const workbase_t *wb, int *cb2len, uchar *scratch)
 {
 	struct userwb *userwb;
 	int64_t id;
@@ -5962,10 +6087,30 @@ static inline uchar *__user_coinb2(const stratum_instance_t *client, const workb
 
 	id = wb->id;
 	HASH_FIND_I64(client->user_instance->userwbs, &id, userwb);
-	if (unlikely(!userwb))
-		goto out_nouserwb;
-	*cb2len = userwb->coinb2len;
-	return userwb->coinb2bin;
+	if (likely(userwb)) {
+		*cb2len = userwb->coinb2len;
+		return userwb->coinb2bin;
+	}
+
+	{
+		static time_t last_warn;
+		time_t now_t = time(NULL);
+
+		if (now_t != last_warn) {
+			last_warn = now_t;
+			LOGWARNING("Client %s user %s missing userwb for solo workbase %"PRId64
+				   ", falling back to pool coinbase script",
+				   client->identity, client->user_instance->username, wb->id);
+		}
+	}
+	memcpy(scratch, wb->coinb2bin, wb->coinb2len);
+	*cb2len = wb->coinb2len;
+	scratch[(*cb2len)++] = sdata->txnlen;
+	memcpy(scratch + *cb2len, sdata->txnbin, sdata->txnlen);
+	*cb2len += sdata->txnlen;
+	memcpy(scratch + *cb2len, wb->coinb3bin, wb->coinb3len);
+	*cb2len += wb->coinb3len;
+	return scratch;
 
 out_nouserwb:
 	*cb2len = wb->coinb2len;
@@ -5982,7 +6127,7 @@ static double submission_diff(sdata_t *sdata, const stratum_instance_t *client, 
 	char *coinbase, data[80];
 	uchar swap[80], hash1[32];
 	int cblen, i, cb2len;
-	uchar *coinb2bin;
+	uchar *coinb2bin, *coinb2scratch;
 	double ret;
 
 	/* Leave ample enough room for donation generation address (~25) + length counter + user generation
@@ -5996,8 +6141,14 @@ static double submission_diff(sdata_t *sdata, const stratum_instance_t *client, 
 	hex2bin(coinbase + cblen, nonce2, wb->enonce2varlen);
 	cblen += wb->enonce2varlen;
 
+	/* Only used by __user_coinb2()'s defensive solo pool-script splice
+	 * when a client is somehow missing its userwb; sized generously
+	 * enough to hold wb->coinb2bin + length byte + sdata->txnbin +
+	 * wb->coinb3bin regardless. */
+	coinb2scratch = alloca(wb->coinb2len + 1 + sizeof(sdata->txnbin) + wb->coinb3len);
+
 	ck_rlock(&sdata->instance_lock);
-	coinb2bin = __user_coinb2(client, wb, &cb2len);
+	coinb2bin = __user_coinb2(sdata, client, wb, &cb2len, coinb2scratch);
 	memcpy(coinbase + cblen, coinb2bin, cb2len);
 	ck_runlock(&sdata->instance_lock);
 
@@ -7103,9 +7254,12 @@ static void send_auth_success(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t 
 	free(buf);
 }
 
-static void send_auth_failure(sdata_t *sdata, stratum_instance_t *client)
+/* reason may be NULL for the generic message; when non-NULL (e.g. the
+ * explicit solo-mode address-typo error set in parse_authorise()'s err_val)
+ * it is sent to the client verbatim instead. */
+static void send_auth_failure(sdata_t *sdata, stratum_instance_t *client, const char *reason)
 {
-	stratum_send_message(sdata, client, "Failed authorisation :(");
+	stratum_send_message(sdata, client, reason ? : "Failed authorisation :(");
 }
 
 /* For finding a client by its virtualid instead of client->id. This is an
@@ -7161,7 +7315,7 @@ void parse_upstream_auth(ckpool_t *ckp, json_t *val)
 	if (ret)
 		send_auth_success(ckp, sdata, client);
 	else
-		send_auth_failure(sdata, client);
+		send_auth_failure(sdata, client, NULL);
 	send_auth_response(sdata, client_id, ret, id_val, err_val);
 	client_auth(ckp, client, client->user_instance, ret);
 	dec_instance_ref(sdata, client);
@@ -7845,8 +7999,12 @@ static void sauth_process(ckpool_t *ckp, json_params_t *jp)
 			goto out;
 		}
 		send_auth_success(ckp, sdata, client);
-	} else
-		send_auth_failure(sdata, client);
+	} else {
+		const char *reason = (err_val && json_is_string(err_val)) ?
+				      json_string_value(err_val) : NULL;
+
+		send_auth_failure(sdata, client, reason);
+	}
 	send_auth_response(sdata, client_id, ret, jp->id_val, err_val);
 	if (!ret)
 		goto out;
