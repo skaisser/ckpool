@@ -573,6 +573,37 @@ void b58tobin(char *b58bin, const char *b58);
 int safecmp(const char *a, const char *b);
 bool cmdmatch(const char *buf, const char *cmd);
 
+/* Classification of a BCH address string. Both cashaddr and legacy
+ * (Base58Check) variants are classified and script-constructed locally --
+ * no RPC round trip -- so validation and payout-script construction can
+ * never disagree on what an address is. */
+typedef enum {
+	BCH_ADDR_INVALID = 0,
+	BCH_ADDR_CASHADDR_P2PKH,
+	BCH_ADDR_CASHADDR_P2SH,
+	BCH_ADDR_LEGACY_P2PKH,
+	BCH_ADDR_LEGACY_P2SH
+} bch_addr_type_t;
+
+/* Classify addr as cashaddr (prefixed or bare) or legacy Base58Check,
+ * fully locally verified (checksum, prefix/version byte). cashaddr_prefix
+ * is the expected network prefix ("bitcoincash", "bchtest" or "bchreg"),
+ * also used to select mainnet vs testnet/regtest legacy version bytes.
+ * On a valid address, fills hash160 (20 bytes) and returns the matching
+ * type; returns BCH_ADDR_INVALID otherwise. */
+bch_addr_type_t bch_classify_address(const char *addr, const char *cashaddr_prefix, uint8_t hash160[20]);
+
+/* Classify addr and write its P2PKH/P2SH output script to out (must hold
+ * at least 25 bytes). Returns the script length, or 0 if addr is invalid. */
+int bch_address_to_script(char *out, const char *addr, const char *cashaddr_prefix);
+
+/* Set/get the process-wide active CashAddr network prefix used by
+ * address_to_txn() and validate_address(), whose existing signatures have
+ * no room for a prefix parameter. Defaults to "bitcoincash" until set.
+ * generator.c calls the setter once chain info is known. */
+void bch_set_cashaddr_prefix(const char *prefix);
+const char *bch_get_cashaddr_prefix(void);
+
 int address_to_txn(char *p2h, const char *addr, const bool script, const bool segwit);
 int ser_number(uchar *s, int32_t val);
 int get_sernumber(uchar *s);

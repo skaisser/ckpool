@@ -209,6 +209,51 @@ struct generator_data {
 
 typedef struct generator_data gdata_t;
 
+/* Query bitcoind for its chain via getblockchaininfo and derive the
+ * matching CashAddr network prefix, storing it in ckp->cashaddr_prefix and
+ * propagating it to the address classifier (bch_set_cashaddr_prefix())
+ * used by validate_address()/address_to_txn(). Runs once, at the first
+ * successful connect; defaults to "bitcoincash" with a warning if the RPC
+ * fails or returns an unrecognised chain. */
+static void detect_cashaddr_prefix(ckpool_t *ckp, connsock_t *cs)
+{
+	static const char *chaininfo_req = "{\"method\": \"getblockchaininfo\"}\n";
+	const char *prefix = "bitcoincash";
+	const char *chain = NULL;
+	json_t *val, *res_val, *chain_val;
+
+	val = json_rpc_call(cs, chaininfo_req);
+	if (!val) {
+		LOGWARNING("Failed to get getblockchaininfo response, defaulting cashaddr prefix to %s", prefix);
+		goto out;
+	}
+	res_val = json_object_get(val, "result");
+	chain_val = res_val ? json_object_get(res_val, "chain") : NULL;
+	chain = chain_val ? json_string_value(chain_val) : NULL;
+	if (!chain) {
+		LOGWARNING("Failed to parse chain from getblockchaininfo, defaulting cashaddr prefix to %s", prefix);
+		goto out_decref;
+	}
+
+	if (!strcmp(chain, "main"))
+		prefix = "bitcoincash";
+	else if (!strcmp(chain, "test") || !strcmp(chain, "testnet4") ||
+		 !strcmp(chain, "scalenet") || !strcmp(chain, "chipnet"))
+		prefix = "bchtest";
+	else if (!strcmp(chain, "regtest"))
+		prefix = "bchreg";
+	else
+		LOGWARNING("Unknown chain '%s' from getblockchaininfo, defaulting cashaddr prefix to %s",
+			   chain, prefix);
+out_decref:
+	json_decref(val);
+out:
+	dealloc(ckp->cashaddr_prefix);
+	ckp->cashaddr_prefix = strdup(prefix);
+	bch_set_cashaddr_prefix(ckp->cashaddr_prefix);
+	LOGNOTICE("Using CashAddr network prefix: %s", ckp->cashaddr_prefix);
+}
+
 /* Use a temporary fd when testing server_alive to avoid races on cs->fd */
 static bool server_alive(ckpool_t *ckp, server_instance_t *si, bool pinging)
 {
@@ -253,6 +298,8 @@ static bool server_alive(ckpool_t *ckp, server_instance_t *si, bool pinging)
 		goto out;
 	}
 	clear_gbtbase(&gbt);
+	if (unlikely(!ckp->cashaddr_prefix))
+		detect_cashaddr_prefix(ckp, cs);
 	if (unlikely(ckp->btcsolo && !ckp->btcaddress)) {
 		/* If no btcaddress is specified in solobtc mode, choose one of
 		 * the donation addresses from mainnet, testnet, or regtest for

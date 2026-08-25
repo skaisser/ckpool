@@ -242,6 +242,8 @@ struct ckpool_instance {
 	json_t *mindiff_overrides; // JSON object mapping patterns to mindiff values
 
 	/* Coinbase data */
+	char *cashaddr_prefix; // CashAddr network prefix ("bitcoincash"/"bchtest"/"bchreg"),
+				// detected from bitcoind's chain at connect time
 	char *btcaddress; // Address to mine to
 	bool script; // Address is a script address
 	bool segwit; // Address is a segwit address
