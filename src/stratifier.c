@@ -5907,7 +5907,7 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	tv_time(&now_t);
 
 	ck_rlock(&sdata->workbase_lock);
-	next_blockid = sdata->workbase_id + 1;
+	next_blockid = sdata->workbase_id;
 	if (ckp->proxy)
 		network_diff = sdata->current_workbase->diff;
 	else
@@ -5937,7 +5937,6 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 
 	client->ssdc++;
 	bdiff = sane_tdiff(&now_t, &client->first_share);
-	bias = time_bias(bdiff, 300);
 	tdiff = sane_tdiff(&now_t, &client->ldc);
 
 	/* Check the difficulty every 240 seconds or as many shares as we
@@ -5950,8 +5949,17 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 		return;
 	}
 
-	/* Diff rate ratio */
-	dsps = client->dsps5 / bias;
+	/* Diff rate ratio.
+	 * If shares are coming in fast, calculate based on
+	 * the one minute rolling average for quick diff adjustment, otherwise
+	 * use the 5 minute rolling average */
+	if (client->ssdc >= 72) {
+		bias = time_bias(bdiff, 60);
+		dsps = client->dsps1 / bias;
+	} else {
+		bias = time_bias(bdiff, 300);
+		dsps = client->dsps5 / bias;
+	}
 	drr = dsps / (double)client->diff;
 
 	/* Optimal rate product is 0.3, allow some hysteresis. */
@@ -6500,9 +6508,12 @@ out_put:
 	put_workbase(sdata, wb);
 out_nowb:
 
-	/* Accept shares of the old diff until the next update */
+	/* Accept shares of the old diff until the next update. Strictly
+	 * speaking clients should not use the new diff until the next update
+	 * but very few clients do this properly, so accept whichever is the
+	 * minimum. */
 	if (id < client->diff_change_job_id)
-		diff = client->old_diff;
+		diff = MIN(diff, client->old_diff);
 	if (!invalid) {
 		char wdiffsuffix[16];
 
@@ -6817,7 +6828,7 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 	client->suggest_diff = sdiff;
 	if (client->diff == sdiff)
 		return;
-	client->diff_change_job_id = client->sdata->workbase_id + 1;
+	client->diff_change_job_id = client->sdata->workbase_id;
 	client->old_diff = client->diff;
 	client->diff = sdiff;
 	stratum_send_diff(ckp->sdata, client);
@@ -8485,8 +8496,11 @@ static void *statsupdate(void *arg)
 
 		ASPRINTF(&fname, "%s/pool/pool.status", ckp->logdir);
 		fp = fopen(fname, "we");
-		if (unlikely(!fp))
+		if (unlikely(!fp)) {
 			LOGERR("Failed to fopen %s", fname);
+			dealloc(fname);
+			goto out_status;
+		}
 		dealloc(fname);
 
 		JSON_CPACK(val, "{si,si,si,si,si,si}",
@@ -8534,6 +8548,7 @@ static void *statsupdate(void *arg)
 		dealloc(s);
 		fclose(fp);
 
+out_status:
 		if (ckp->proxy && sdata->proxy) {
 			proxy_t *proxy, *proxytmp, *subproxy, *subtmp;
 
