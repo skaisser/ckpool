@@ -957,16 +957,8 @@ bool generator_checkaddr(ckpool_t *ckp, const char *addr, bool *script, bool *se
 	cs = &si->cs;
 	ret = validate_address(cs, addr, script, segwit);
 
-	if (unlikely(!ret)) {
-		LOGWARNING("Failed to validate address at %s:%s", cs->url, cs->port);
-		si->alive = cs->alive = false;
-
-		/* Immediately failover to a live server */
-		si = live_server(ckp, gdata);
-		if (si) {
-			reconnect_generator(ckp);
-		}
-	}
+	if (unlikely(!ret))
+		LOGWARNING("Address validation failed for %s via %s:%s", addr, cs->url, cs->port);
 out:
 	return ret;
 }
