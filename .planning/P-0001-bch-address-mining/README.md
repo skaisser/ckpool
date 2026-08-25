@@ -23,7 +23,9 @@ missing fallback. Read order: this file → [decisions.md](decisions.md) →
 [02-upstream-patches.md](02-upstream-patches.md).
 
 Real money: every phase that touches payout code carries its own regtest or
-unit verification, and Phase 8 is a full end-to-end money gate on regtest.
+unit verification, and Phase 9 is a full end-to-end money gate on regtest.
+Per decision D4 the pool is BCH-only: no Bitcoin-mining compatibility is
+kept, and Phase 7 strips the remaining BTC leftovers.
 
 ## What is canonical and NOT changing
 
@@ -80,7 +82,7 @@ See [decisions.md](decisions.md). Summary — do not reopen:
   mode. Threatens Phase 4.
 - **Rental diff clobber**: mindiff_overrides pattern loop runs after
   useragent detection with no guard; 1-2 char keys substring-match ~4% of
-  addresses. Phase 7 adds the guard; until then keep every override key ≥3
+  addresses. Phase 8 adds the guard; until then keep every override key ≥3
   chars or containing one of `b i o 1`.
 
 ## Phases
@@ -158,7 +160,18 @@ See [decisions.md](decisions.md). Summary — do not reopen:
 
 **Verify:** build clean; diff review shows each of the four semantic changes present; existing behavior for normal-diff shares unchanged (code inspection note per patch).
 
-### Phase 7: Rental-diff guard for mindiff_overrides [S]
+### Phase 7: BCH-only cleanup — strip BTC leftovers (decision D4) [S]
+
+**Touches:** `src/libckpool.c`, `src/libckpool.h`, `src/bitcoin.c`, `src/ckpool.c`, `src/ckpool.h`
+
+- [ ] Remove `segaddress_to_txn`/bech32 handling and the `segwit` branch from the address path (unreachable on BCH once the Phase 2 classifier lands); drop the `segwit` flags threaded through `validate_address` → `generator_checkaddr` → `user_instance`/config where they become dead, or hardwire them false with a one-line comment if a signature is shared.
+- [ ] Remove the hardcoded BTC donation addresses (ckpool.c:1771-1776) and remaining donation residue that Phase 4 didn't already delete (`donvalid`/`dontxnbin` branches in `generate_coinbase` stratifier.c:612-618, 640-647 — dead since `donvalid` is never set; confirm then delete).
+- [ ] `insert_witness`: BCH GBT never returns `default_witness_commitment` — replace the machinery with an assert/log-and-ignore rather than live coinbase branches (conservative: keep the variable, make the true-branch unreachable with a LOGEMERG).
+- [ ] Do NOT touch consensus/validation logic beyond these dead paths — this phase deletes unreachable BTC code, it does not restructure live BCH code.
+
+**Verify:** build clean; grep shows no remaining `bech32`/`segaddress`/BTC `bc1q` references in src/ (excluding comments/ChangeLog); regtest smoke from Phase 9 later re-proves coinbase validity.
+
+### Phase 8: Rental-diff guard for mindiff_overrides [S]
 
 **Touches:** `src/stratifier.c`
 
@@ -166,7 +179,7 @@ See [decisions.md](decisions.md). Summary — do not reopen:
 
 **Verify:** build clean; trace note showing order: subscribe detection → (skipped) pattern loop → password diff still wins.
 
-### Phase 8: Regtest end-to-end money gate (verify-only) [S]
+### Phase 9: Regtest end-to-end money gate (verify-only) [S]
 
 **Touches:** `testing/regtest-e2e.sh` (new), `.planning/P-0001-bch-address-mining/03-regtest-results.md` (new)
 
@@ -176,7 +189,7 @@ See [decisions.md](decisions.md). Summary — do not reopen:
 
 **Verify:** `03-regtest-results.md` contains the pasted `getblock` coinbase decode for scenarios 1-4 and the rejection log line for scenario 5.
 
-### Phase 9: Documentation and deploy notes [H]
+### Phase 10: Documentation and deploy notes [H]
 
 **Touches:** `README.md`, `ckpool.conf`, `POOL_FEE.md` (new), `install-ckpool.sh`, `post-install.sh`
 
@@ -189,7 +202,7 @@ See [decisions.md](decisions.md). Summary — do not reopen:
 
 ## Acceptance
 
-- [ ] Regtest scenario matrix (Phase 8) recorded in `03-regtest-results.md`: a block mined with a CashAddr username (prefixed AND bare) pays exactly 98% to that address and 2% to `pooladdress`; a legacy-address username does the same; a non-address username authorizes and its block pays the pool addresses — pasted `getblock` coinbase decodes as evidence.
+- [ ] Regtest scenario matrix (Phase 9) recorded in `03-regtest-results.md`: a block mined with a CashAddr username (prefixed AND bare) pays exactly 98% to that address and 2% to `pooladdress`; a legacy-address username does the same; a non-address username authorizes and its block pays the pool addresses — pasted `getblock` coinbase decodes as evidence.
 - [ ] A typo'd (checksum-failing) address username is rejected at authorize with an explicit error and receives no work — pasted log line.
 - [ ] CashAddr unit tests pass, including: one-character typo rejected, wrong-network prefix rejected, mixed-case rejected, prefixless and uppercase forms accepted — `make check` output pasted.
 - [ ] `validate_address` and `address_to_txn` provably agree on the Phase 2 matrix (no input accepted by one and mis-decoded by the other).
@@ -197,3 +210,4 @@ See [decisions.md](decisions.md). Summary — do not reopen:
 - [ ] NiceHash-style client (useragent `NiceHashMiner`) with an address username gets 500k diff from useragent detection, unaffected by the pattern loop — log evidence.
 - [ ] `poolfee` clamp and dust guard behave per the Phase 5 table (outputs always sum to coinbasevalue; no underflow at any tested value).
 - [ ] All four upstream ports present and the tree builds clean with no new warnings in touched files.
+- [ ] BCH-only (D4): no `bech32`/`segaddress`/`bc1q` references remain in src/ code paths (grep evidence), and no BTC donation address can ever become the pool's mining or fee address.

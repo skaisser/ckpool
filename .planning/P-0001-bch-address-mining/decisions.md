@@ -22,6 +22,13 @@ existing miner is lost. No second instance / port.
 Production `poolfee` is 2.0 (`pooladdress` receives 2%, miner 98%). Acceptance
 gates assert a 98/2 coinbase split. Split math stays configurable (0–100).
 
+## D4 — BCH-only: no Bitcoin-mining compatibility retained
+(Locked by operator, 2026-08-25.) EloPool targets Bitcoin Cash exclusively.
+No BTC-oriented code path is preserved for compatibility: segwit/bech32
+address handling, witness-commitment coinbase insertion, and hardcoded BTC
+donation addresses are removed or made unreachable-and-asserted. Upstream
+ports are filtered to BCH-relevant fixes only (BIP54/segwit/SV2 excluded).
+
 ## Engineering decisions closed by recon (facts, not preferences)
 - CashAddr checksum MUST be verified (polymod is currently dead code) — typo'd
   addresses must never decode to a payable script.
