@@ -535,6 +535,7 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 {
 	uint64_t *u64, g64, d64 = 0;
 	sdata_t *sdata = ckp->sdata;
+	bool poolfee_dust = false;
 	char header[272];
 	int len, ofs = 0;
 	ts_t now;
@@ -612,8 +613,22 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		double dbl64 = (double)g64 / 100 * ckp->poolfee;
 
 		d64 = dbl64;
-		g64 -= d64; // To guarantee integers add up to the original coinbasevalue
-		wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
+		/* Dust guard: a fee output below the 546 sat dust threshold
+		 * is non-standard and may be rejected by the network. Fall
+		 * through to the single-output path for this workbase,
+		 * paying the miner the full coinbasevalue, rather than
+		 * emitting a dust output. Outputs still sum exactly to
+		 * wb->coinbasevalue either way. */
+		if (d64 < 546) {
+			LOGWARNING("Pool fee output %"PRIu64" sats below dust threshold, omitting fee output", d64);
+			d64 = 0;
+			g64 = wb->coinbasevalue;
+			wb->coinb2bin[wb->coinb2len++] = 1 + wb->insert_witness;
+			poolfee_dust = true;
+		} else {
+			g64 -= d64; // To guarantee integers add up to the original coinbasevalue
+			wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
+		}
 	} else if (ckp->donvalid && ckp->donation > 0) {
 		/* Fallback to donation if no pool fee */
 		double dbl64 = (double)g64 / 100 * ckp->donation;
@@ -634,7 +649,7 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 	wb->coinb3bin = ckzalloc(256 + wb->insert_witness * (8 + witnessdata_size + 2));
 
 	/* Add pool operator fee or donation output */
-	if (ckp->poolvalid && ckp->poolfee > 0) {
+	if (ckp->poolvalid && ckp->poolfee > 0 && !poolfee_dust) {
 		u64 = (uint64_t *)wb->coinb3bin;
 		*u64 = htole64(d64);
 		wb->coinb3len += 8;
@@ -650,7 +665,11 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		wb->coinb3bin[wb->coinb3len++] = sdata->dontxnlen;
 		memcpy(wb->coinb3bin + wb->coinb3len, sdata->dontxnbin, sdata->dontxnlen);
 		wb->coinb3len += sdata->dontxnlen;
-	} else {
+	} else if (!poolfee_dust) {
+		/* Only permanently disable poolfee/donation when neither is
+		 * configured at all. A dust-suppressed poolfee is a
+		 * per-workbase condition (coinbasevalue too small this
+		 * round) and must not disable future, non-dust workbases. */
 		ckp->donation = 0;
 		ckp->poolfee = 0;
 	}
@@ -2075,6 +2094,17 @@ process_block(const workbase_t *wb, const char *coinbase, const int cblen,
 	int txns = wb->txns + 1;
 	char hexcoinbase[1024];
 
+	/* hexcoinbase can hold at most (sizeof(hexcoinbase) - 1) / 2 binary
+	 * bytes plus the null terminator __bin2hex() appends. Current
+	 * coinbases are ~200 bytes; this should never trigger, but a
+	 * malformed/oversized coinbase must not silently overflow a
+	 * fixed-size stack buffer. */
+	if (unlikely(cblen > (int)(sizeof(hexcoinbase) - 1) / 2)) {
+		LOGEMERG("Coinbase length %d exceeds max %d, refusing to build block",
+			 cblen, (int)(sizeof(hexcoinbase) - 1) / 2);
+		return NULL;
+	}
+
 	flip_32(flip32, hash);
 	__bin2hex(blockhash, flip32, 32);
 
@@ -2269,7 +2299,10 @@ static void submit_node_block(ckpool_t *ckp, sdata_t *sdata, json_t *val)
 
 	/* Now we have enough to assemble a block */
 	gbt_block = process_block(wb, coinbase, cblen, swap, hash, flip32, blockhash);
-	ret = local_block_submit(ckp, gbt_block, flip32, wb->height);
+	/* process_block returns NULL if the coinbase was too large to fit
+	 * its fixed-size hex buffer (should never happen); skip submission
+	 * rather than passing NULL through to the generator. */
+	ret = gbt_block ? local_block_submit(ckp, gbt_block, flip32, wb->height) : false;
 
 	JSON_CPACK(bval, "{si,ss,ss,sI,ss,ss,si,ss,sI,sf,ss,ss,ss,ss}",
 			 "height", wb->height,
@@ -2441,8 +2474,8 @@ static sdata_t *duplicate_sdata(const sdata_t *sdata)
 	dsdata->ckp = sdata->ckp;
 
 	/* Copy the transaction binaries for workbase creation */
-	memcpy(dsdata->txnbin, sdata->txnbin, 40);
-	memcpy(dsdata->dontxnbin, sdata->dontxnbin, 40);
+	memcpy(dsdata->txnbin, sdata->txnbin, sizeof(dsdata->txnbin));
+	memcpy(dsdata->dontxnbin, sdata->dontxnbin, sizeof(dsdata->dontxnbin));
 
 	/* Use the same work queues for all subproxies */
 	dsdata->ssends = sdata->ssends;
@@ -6057,8 +6090,10 @@ test_blocksolve(const stratum_instance_t *client, const workbase_t *wb, const uc
 	}
 
 	/* Submit block locally after sending it to remote locations avoiding
-	 * the delay of local verification */
-	ret = local_block_submit(ckp, gbt_block, flip32, wb->height);
+	 * the delay of local verification. gbt_block may be NULL if
+	 * process_block() rejected an oversized coinbase (should never
+	 * happen); skip submission rather than passing NULL through. */
+	ret = gbt_block ? local_block_submit(ckp, gbt_block, flip32, wb->height) : false;
 	if (ret)
 		block_solve(ckp, val);
 	else
@@ -7443,8 +7478,11 @@ static void parse_remote_block(ckpool_t *ckp, sdata_t *sdata, json_t *val, const
 		send_nodes_block(sdata, val, client_id);
 		/* We rely on the remote server to give us the ID_BLOCK
 		 * responses, so only use this response to determine if we
-		 * should reset the best shares. */
-		if (local_block_submit(ckp, gbt_block, flip32, wb->height)) {
+		 * should reset the best shares. gbt_block may be NULL if
+		 * process_block() rejected an oversized coinbase (should
+		 * never happen); skip submission rather than passing NULL
+		 * through. */
+		if (gbt_block && local_block_submit(ckp, gbt_block, flip32, wb->height)) {
 			block_share_summary(sdata);
 			reset_bestshares(sdata);
 		}
