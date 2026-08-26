@@ -217,12 +217,27 @@ mature_chain_and_addresses() {
 	if [[ "$last" == "q" ]]; then flipped="p"; else flipped="q"; fi
 	ADDR5_TYPO="${prefix}:${rest}${flipped}"
 
+	# Scenario 5b: same payload as scenario 3, last Base58 character
+	# flipped so the Base58Check checksum fails. Regression guard for the
+	# legacy leading-char gap in looks_like_address() -- a typo'd regtest
+	# legacy address ('m'/'n'/'2' leading char) must be rejected as a typo
+	# rather than silently authorised as a pool-fallback user.
+	ADDR5B_TYPO_LEGACY=""
+	if [[ -n "$ADDR3" ]]; then
+		local l3 r3 f3
+		l3="${ADDR3: -1}"
+		r3="${ADDR3:0:${#ADDR3}-1}"
+		if [[ "$l3" == "a" ]]; then f3="b"; else f3="a"; fi
+		ADDR5B_TYPO_LEGACY="${r3}${f3}"
+	fi
+
 	log "pool bchaddress   = $POOL_ADDR"
 	log "pool fee address  = $FEE_ADDR"
 	log "scenario1 (prefixed cashaddr) = $ADDR1"
 	log "scenario2 (bare cashaddr)     = $ADDR2_BARE"
 	[[ -n "$ADDR3" ]] && log "scenario3 (legacy)            = $ADDR3"
 	log "scenario5 (typo'd cashaddr)   = $ADDR5_TYPO"
+	[[ -n "$ADDR5B_TYPO_LEGACY" ]] && log "scenario5b (typo'd legacy)    = $ADDR5B_TYPO_LEGACY"
 	log "scenario6 (uppercase bare)    = $ADDR6_UPPER"
 }
 
@@ -461,6 +476,35 @@ scenario_5_typo_rejected() {
 		"$([[ "$has_failover" == "false" ]] && echo true || echo false)"
 }
 
+scenario_5b_legacy_typo_rejected() {
+	if [[ -z "$ADDR5B_TYPO_LEGACY" ]]; then
+		log "=== Scenario 5b: typo'd legacy address -- SKIPPED (no legacy address available) ==="
+		return
+	fi
+	log "=== Scenario 5b: typo'd legacy address (${ADDR5B_TYPO_LEGACY}.w1) must be REJECTED ==="
+	local response
+	response=$(stratum_probe "${ADDR5B_TYPO_LEGACY}.w1" "x")
+
+	local has_explicit_error has_notify
+	has_explicit_error=$(printf '%s' "$response" | grep -qi "Invalid BCH address" && echo true || echo false)
+	has_notify=$(printf '%s' "$response" | grep -q "mining.notify" && echo true || echo false)
+
+	check "scenario5b: auth response carries the explicit typo error over the wire" "$has_explicit_error"
+	check "scenario5b: no mining.notify (work) was served to the rejected client" \
+		"$([[ "$has_notify" == "false" ]] && echo true || echo false)"
+	log "scenario5b: raw stratum exchange was:"
+	printf '%s\n' "$response" >&2
+
+	sleep 1
+	local logtext=""
+	[[ -f "$LOGDIR/e2e.log" ]] && logtext=$(cat "$LOGDIR/e2e.log")
+	local has_silent_fallback
+	has_silent_fallback=$(printf '%s' "$logtext" | \
+		grep -qi "User ${ADDR5B_TYPO_LEGACY} is not a BCH address, mining to pool address" && echo true || echo false)
+	check "scenario5b: typo was NOT silently redirected to the pool address" \
+		"$([[ "$has_silent_fallback" == "false" ]] && echo true || echo false)"
+}
+
 scenario_6_uppercase_same_user() {
 	log "=== Scenario 6: UPPERCASE bare cashaddr ($ADDR6_UPPER) normalizes to scenario 2's user ==="
 	local pid; pid=$(run_miner "$ADDR6_UPPER")
@@ -517,6 +561,7 @@ main() {
 	scenario_3_legacy
 	scenario_4_fallback
 	scenario_5_typo_rejected
+	scenario_5b_legacy_typo_rejected
 	scenario_6_uppercase_same_user
 	scenario_7_multi_worker
 

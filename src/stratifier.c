@@ -5398,6 +5398,7 @@ static bool looks_like_address(const char *username)
 	static const char cashaddr_charset[] = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 	static const char b58_charset[] =
 		"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+	const bool mainnet = !strcasecmp(bch_get_cashaddr_prefix(), "bitcoincash");
 	size_t len, i;
 
 	if (!username)
@@ -5424,7 +5425,15 @@ static bool looks_like_address(const char *username)
 			return true;
 	}
 
-	if ((username[0] == '1' || username[0] == '3') && len >= 25 && len <= 36) {
+	/* Legacy Base58Check leading chars follow the version byte that
+	 * bch_classify_legacy() accepts: mainnet 0x00/0x05 -> '1'/'3', and on
+	 * testnet/regtest 0x6f/0xc4 -> 'm'/'n'/'2'. The non-mainnet chars are
+	 * gated on the active network so that mainnet worker names beginning
+	 * with 'm', 'n' or '2' keep authorising as pool-fallback users. */
+	if ((username[0] == '1' || username[0] == '3' ||
+	     (!mainnet && (username[0] == 'm' || username[0] == 'n' ||
+			   username[0] == '2'))) &&
+	    len >= 25 && len <= 36) {
 		bool all_b58 = true;
 
 		for (i = 0; i < len; i++) {
