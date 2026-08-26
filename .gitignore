@@ -42,3 +42,6 @@ libtool
 
 # macOS
 .DS_Store
+
+# Local planning dossiers (kept on disk, not published)
+.planning/

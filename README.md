@@ -1,6 +1,101 @@
-# EloPool - Production-Ready Bitcoin Cash Mining Pool Software
+<div align="center">
 
-**EloPool** is a heavily enhanced fork of CKPool, specifically optimized for Bitcoin Cash (BCH) mining. This production-ready pool software includes native CashAddr support, pool operator fee distribution, multi-difficulty management, and enterprise-grade reliability features.
+# ⛏️ EloPool
+
+### Production-Ready Bitcoin Cash Mining Pool Software
+
+**A heavily enhanced fork of CKPool, purpose-built for Bitcoin Cash (BCH) solo mining.**
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](COPYING)
+[![Coin: BCH](https://img.shields.io/badge/coin-Bitcoin%20Cash-8DC351.svg)](https://bitcoincash.org)
+[![Status: Active Development](https://img.shields.io/badge/status-active%20development-orange.svg)](#project-status)
+[![Blocks Mined: 66+](https://img.shields.io/badge/mainnet%20blocks-66%2B-success.svg)](#-production-achievements)
+[![Written in C](https://img.shields.io/badge/written%20in-C-555555.svg)](src/)
+
+Native CashAddr · Per-address solo payouts · Configurable operator fee · Instant multi-node failover
+
+</div>
+
+---
+
+<a id="project-status"></a>
+
+> [!WARNING]
+> ### 🚧 Project Status — Active Development
+>
+> **This repository is under active development and its branches move fast.** Interfaces,
+> config keys, and on-chain payout behaviour can change between commits without notice.
+>
+> **If you run a pool with real money on it, fork this repo and deploy from your own fork.**
+> Pin a commit you have tested yourself, review every upstream change before you pull it in,
+> and never point production at a moving branch here.
+>
+> Before you go live on mainnet, validate your setup end-to-end on **regtest or testnet** —
+> `testing/regtest-e2e.sh` exercises the full money path (coinbase splits, fee outputs,
+> address classification, typo rejection) and is the fastest way to prove your build pays
+> the addresses you expect.
+>
+> **Please share what you find.** Bug reports, regression cases, production logs, and
+> pull requests back to this repo are genuinely welcome — this software handles block
+> rewards, and every extra pair of eyes on the payout path makes it safer for everyone.
+> Open an [issue](https://github.com/skaisser/ckpool/issues) or send a PR.
+
+---
+
+## 📖 Table of Contents
+
+| Getting Started | Operating the Pool | Reference |
+|---|---|---|
+| [Mine to Your Own Address](#-mine-directly-to-your-own-bch-address) | [Running the Pool](#-running-the-pool) | [What's Different from CKPool](#-whats-different-from-original-ckpool) |
+| [Requirements](#-requirements) | [Multi-Node Configuration](#multi-node-configuration-highly-recommended-for-production) | [Key Features](#-key-features) |
+| [Installation](#%EF%B8%8F-installation) | [Solo Mode Cutover](#-deploying-solo-mode-cutover) | [Architecture](#%EF%B8%8F-architecture) |
+| [Configuration](#%EF%B8%8F-configuration) | [Monitoring](#monitor-operations) | [API Commands](#-api-commands) |
+| [BCH Node Setup](#-bch-node-setup) | [Troubleshooting](#-troubleshooting) | [Changelog](#-changelog) |
+| [NiceHash & MRR Setup](#-nicehash--miningrigrentals-setup) | [Testing](#-testing) | [Contributing](#-contributing) |
+
+---
+
+## 🎯 Mine Directly to Your Own BCH Address
+
+**Solo Mode (-B):** The pool now supports mining directly to your personal BCH address. Each miner is paid on-chain automatically when they find a block, receiving their share minus the pool operator fee.
+
+### How It Works
+
+Simply use your **BCH address as your mining username**:
+
+```bash
+# CashAddr format (with prefix) - recommended
+./cgminer -o stratum+tcp://pool:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy -p x
+
+# CashAddr format (without prefix)
+./cgminer -o stratum+tcp://pool:3333 -u qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy -p x
+
+# Legacy Base58 format
+./cgminer -o stratum+tcp://pool:3333 -u 1A1z7agoat8Bt8ZVUUxkKvWAWgHtdNi3nn -p x
+
+# Multi-worker mode (add `.workername` or `_workername` suffix)
+./cgminer -o stratum+tcp://pool:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy.rig01 -p x
+```
+
+### Payment Distribution
+
+When you find a block:
+- **98%** goes to your on-chain address automatically
+- **2%** (configurable 0–50%) goes to the pool operator as fee
+
+The pool creates a dual-output coinbase transaction splitting the block reward. All outputs sum to the full block reward; if the fee would be dust (<546 sats), the fee output is omitted.
+
+### Smart Fallback & Typo Protection
+
+- **Non-address username** (e.g., `rig01`, `miner1`): You mine for the pool's own address (`bchaddress` config) but keep all rewards
+- **Invalid address** (bad checksum/wrong network): You're **rejected immediately** with the message "Invalid BCH address (bad checksum or wrong network) - check your username for typos" — this protects you from accidentally donating a block to a mistyped address
+
+### Network Support
+
+The pool automatically detects your network (mainnet/testnet/regtest) from the BCH node and validates addresses accordingly. CashAddr prefixes must match the network:
+- `bitcoincash:` addresses → mainnet
+- `bchtest:` addresses → testnet  
+- `bchreg:` addresses → regtest
 
 ## 🚀 What's Different from Original CKPool?
 
@@ -101,6 +196,10 @@ This is not just a simple fork. EloPool has been **extensively modified** for Bi
   - Case-insensitive substring matching
   - Applied during worker authorization
   - Useful for custom miner groups
+  
+  ⚠️ **Important for Solo Mode:** To avoid substring-matching BCH addresses in usernames, keep keys ≥3 characters AND avoid letters b, i, o (hexadecimal-like). Examples:
+    - ✅ Good: `"nicehash"` (8 chars), `"high"` (4 chars), `"test123"` (7 chars)
+    - ❌ Avoid: `"hi"` (2 chars), `"rig"` (contains `i`), `"old"` (contains `o`)
 
 #### 4. **Enterprise-Grade Multi-Node Redundancy** ✅
   - **Instant failover** - Switches to backup on first RPC failure (~100ms)
@@ -150,7 +249,7 @@ cd ckpool
 
 # 3. Configure your pool settings
 nano ~/ckpool/ckpool.conf
-# Edit: btcaddress, pooladdress, poolfee, btcd credentials
+# Edit: bchaddress, pooladdress, poolfee, btcd credentials
 
 # 4. Set up systemd service and firewall (requires sudo)
 sudo ./post-install.sh
@@ -183,19 +282,16 @@ sudo make install
 
 ```json
 {
-    // Mainnet example with CashAddr:
-    "btcaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",  // Miner receives 99%
-    "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w", // Pool receives 1%
+    "bchaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",  // Miner receives 98%
+    "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w", // Pool receives 2%
 
-    // Legacy addresses also work:
-    // "btcaddress": "1AGQcP3KNqTAQkZQA2LBCKqvYn1C4V7cS",
-    // "pooladdress": "1PeURBa2vVBuKgeqRjVNqF7eGumeZCJ3mb",
-
-    "poolfee": 1.0  // 1% pool fee (must include decimal)
+    "poolfee": 2.0  // 2% pool fee (configurable 0-50, must include decimal)
 }
 ```
 
-This creates a dual-output coinbase transaction automatically splitting the block reward.
+**Note:** The config key `btcaddress` is deprecated. Use `bchaddress` (same functionality, BCH-specific naming).
+
+This creates a dual-output coinbase transaction automatically splitting the block reward. See [Pool Fee Details](POOL_FEE.md) for the complete mechanics (rounding, dust handling, verification).
 
 ### Coinbase Message (btcsig)
 
@@ -257,9 +353,9 @@ The `btcsig` parameter controls the **entire** coinbase message that appears in 
         "notify": true,
         "zmqnotify": "tcp://127.0.0.1:28333"
     }],
-    "btcaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",  // Main mining address
+    "bchaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",  // Main mining address (solo mode fallback)
     "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w",  // Pool fee address
-    "poolfee": 1.0,                           // 1% pool fee
+    "poolfee": 2.0,                           // 2% pool fee (configurable 0-50)
     "btcsig": "YourPool.com",                // Your pool branding
     "blockpoll": 50,
     "update_interval": 15,
@@ -300,10 +396,10 @@ The `btcsig` parameter controls the **entire** coinbase message that appears in 
             "zmqnotify": "tcp://10.0.1.11:28333"
         }
     ],
-    "btcaddress": "YOUR_BCH_ADDRESS",  // CashAddr or legacy format
+    "bchaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",
+    "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w",
+    "poolfee": 2.0,
     "btcsig": "EloPool.cloud",
-    "pooladdress": "YOUR_BCH_FEE_ADDRESS", // CashAddr or legacy format
-    "poolfee": 1,
     "mindiff": 500000,
     "startdiff": 500000,
     "maxdiff": 1000000,
@@ -375,26 +471,37 @@ Just add to your config:
 
 **That's it!** The pool will automatically detect and apply correct difficulty.
 
-### For Miners/Renters
+### For Solo Miners
 
-#### NiceHash (Ready for Production Testing)
-1. Add pool: `stratum+tcp://POOL_IP:3333`
-2. Use your BCH address as username
-3. Any password (or use `d=DIFFICULTY` to override)
-4. **Pool auto-detects NiceHash from useragent and applies 500k+ difficulty**
-5. **Note**: Ensure `maxdiff` is 0 or > 500000 in config
+All miners connect the same way using their **own BCH address as the username**. Blocks are mined directly to the miner's address:
 
-#### MiningRigRentals
-1. Pool URL: `stratum+tcp://POOL_IP:3333`
-2. Worker: `YOUR_BCH_ADDRESS.rigname`
-3. Password: `x` (or `d=DIFFICULTY` to set custom)
-4. **Pool auto-detects MRR and applies 1M+ difficulty**
-
-#### Regular Miners (Non-Rental)
 ```bash
-# Use password to set your preferred difficulty
-./cgminer -o stratum+tcp://POOL_IP:3333 -u BCH_ADDRESS.worker -p d=50000
+# Basic setup (uses default difficulty)
+./cgminer -o stratum+tcp://POOL_IP:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy -p x
+
+# Set custom difficulty via password
+./cgminer -o stratum+tcp://POOL_IP:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy -p d=500000
+
+# Multi-worker setup
+./cgminer -o stratum+tcp://POOL_IP:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy.rig01 -p x
 ```
+
+**When you find a block:**
+- 98% auto-pays to your address on-chain
+- 2% (configurable) pays to the pool operator fee address
+- Payment is automatic and non-custodial
+
+### For Rental Services (NiceHash, MiningRigRentals)
+
+If renting hashrate to this pool:
+
+1. Add pool: `stratum+tcp://POOL_IP:3333`
+2. Use your **BCH address** as the username (same as solo miners)
+3. **Auto-detection:** Pool automatically detects NiceHash/MRR from useragent and applies appropriate difficulty
+   - NiceHash: 500k difficulty
+   - MiningRigRentals: 1M difficulty
+4. You can override with password: `-p d=1000000`
+5. **Note:** Ensure pool's `maxdiff` is 0 or > rental service difficulty
 
 ## 🚦 BCH Node Setup
 
@@ -476,6 +583,58 @@ cd ~/ckpool
 tail -f ~/ckpool/logs/ckpool.log
 ```
 
+## 🚀 Deploying Solo Mode Cutover
+
+To activate solo mode mining where each miner is paid directly on-chain:
+
+### 1. Update Configuration
+
+```bash
+# Edit your ckpool.conf
+nano ~/ckpool/ckpool.conf
+```
+
+Set these keys:
+- `"bchaddress"` - fallback address for non-address usernames (miners should use their own BCH address as username)
+- `"pooladdress"` - your pool operator fee address (receives the configured poolfee %)
+- `"poolfee"` - fee percentage (e.g., 2.0 for 2%; configurable 0–50)
+
+### 2. Enable Solo Mode Flag
+
+Add `-B` flag to your pool start command. For systemd service:
+
+```bash
+# Edit the service file
+sudo nano /etc/systemd/system/ckpool.service
+```
+
+Update the `ExecStart` line to include `-B`:
+```
+ExecStart=/home/user/ckpool/ckpool -c /home/user/ckpool/ckpool.conf -L -B
+```
+
+### 3. Restart the Pool
+
+```bash
+# Reload systemd and restart
+sudo systemctl daemon-reload
+sudo systemctl restart ckpool
+
+# Verify it's running
+sudo systemctl status ckpool
+```
+
+### 4. Miner Migration (Optional)
+
+Existing miners with plain usernames (e.g., `rig01`) continue mining:
+- They automatically mine for your `bchaddress` pool fallback
+- No action needed until they want individual payouts
+
+Miners can opt-in to solo mode by using their **own BCH address as username**:
+```bash
+./cgminer -o stratum+tcp://pool:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy -p x
+```
+
 ### Monitor Operations
 
 ```bash
@@ -494,6 +653,56 @@ sudo journalctl -u ckpool -f --lines=100
 # View logs (manual)
 tail -f ~/ckpool/logs/ckpool.log
 ```
+
+## 🧪 Testing
+
+Two layers of tests ship with the pool. Run both before you point real hashrate at a build.
+
+### Unit Tests
+
+Built and run by the standard autotools target:
+
+```bash
+./autogen.sh && ./configure && make
+make check
+```
+
+| Test | Covers |
+|---|---|
+| `test/sha256` | SHA-256 primitives used by block hashing |
+| `test/cashaddr` | CashAddr encode/decode, checksum, prefix and case handling |
+| `test/addrclassify` | Address classification across mainnet / testnet / regtest, legacy Base58 and CashAddr |
+
+### End-to-End Money Gate (regtest)
+
+`testing/regtest-e2e.sh` is the test that actually proves your build pays the right
+addresses. It spins up a throwaway `bitcoind -regtest` node, builds and starts
+`src/ckpool -B` against it, drives the bundled CPU miner plus raw stratum probes through
+every auth and payout scenario, and asserts each resulting coinbase against the expected
+split.
+
+```bash
+./testing/regtest-e2e.sh
+# exit 0 = every assertion passed
+# exit 1 = an assertion FAILed
+# exit 2 = missing prerequisites (nothing was started)
+```
+
+| Scenario | What it proves |
+|---|---|
+| 1 | Prefixed CashAddr username pays that address, fee split applied |
+| 2 | Bare (prefixless) CashAddr username resolves and pays identically |
+| 3 | Legacy Base58 address username pays that address |
+| 4 | Non-address username falls back to the pool's own `bchaddress` |
+| 5 | Typo'd CashAddr is rejected with the explicit error, no work served |
+| 5b | Typo'd **legacy** address is rejected, never silently redirected to the pool |
+| 6 | UPPERCASE bare CashAddr normalizes to the same user account |
+| 7 | Multiple workers under one address aggregate to a single payout |
+
+> [!IMPORTANT]
+> The e2e script must run on **Linux**. `src/ckpool` links against `<sys/epoll.h>` so it
+> does not build on macOS/BSD, and the bundled `testing/minerd` is a Linux ELF binary.
+> Run it on the pool server, not on your laptop.
 
 ## 🔧 Troubleshooting
 
@@ -588,13 +797,71 @@ CKPool uses Unix sockets for administration:
 - ✅ Low difficulty for Bitaxe miners
 - ✅ Stable operation over extended periods
 
+## 📜 Changelog
+
+Full history lives in [ChangeLog](ChangeLog). Most recent release below.
+
+### v1.2.0 — 2026-08-26 · Per-Address Solo Mining
+
+The headline change: in solo mode (`-B`) every miner is now paid **directly to their own
+BCH address**, on-chain, in the coinbase of the block they found. Your username *is* your
+payout address.
+
+**Per-Address Solo Payouts**
+- ✨ Mine to your own address by using it as your stratum username — CashAddr (prefixed or
+  bare), UPPERCASE CashAddr, or legacy Base58 all resolve to the same account
+- ✨ Dual-output coinbase splits the reward between the finder and the pool operator
+- ✨ Multi-worker support — `<address>.rig01` / `<address>_rig01` aggregate under one payout
+- ✨ New `bchaddress` config key names the pool's own payout address
+- 🔧 Operator fee configurable 0–50% via `poolfee`, defaulting to 2%
+
+**Payout Safety**
+- 🔒 Fee percentage clamped, coinbase size bounded, and dust fee outputs (<546 sats)
+  omitted so every output sums cleanly to the full block reward
+- 🔒 Unified local address classifier shared by the validation and script-building paths,
+  so an address can never validate one way and pay another
+- 🔒 Strict CashAddr verification — checksum, prefix and case are all enforced
+- ✨ **Smart fallback**: a genuinely non-address username mines to the pool's `bchaddress`
+- ✨ **Typo protection**: an address-shaped username that fails validation is rejected
+  outright with "Invalid BCH address (bad checksum or wrong network) — check your username
+  for typos", instead of silently donating your block to the pool
+- 🐛 Typo'd **testnet/regtest legacy** addresses are now caught by that same guard — the
+  shape check was mainnet-only, so they previously fell through to pool fallback. The
+  non-mainnet leading characters are gated on the detected network, so mainnet worker
+  names beginning with `m`, `n` or `2` still authorise normally
+
+**Reliability**
+- 🐛 An invalid address no longer marks bitcoind dead during `checkaddr`
+- 🐛 Rental-detected clients skip `mindiff_overrides` pattern matching
+- 🐛 Ported upstream diff-window, burst vardiff and stats crash fixes
+
+**BCH-Only Cleanup**
+- 🔥 Stripped the BTC donation path and remaining segwit leftovers
+
+**Testing**
+- 🧪 New `testing/regtest-e2e.sh` end-to-end money gate — eight scenarios asserting real
+  coinbase outputs on a throwaway regtest node
+- 🧪 New `test/addrclassify` unit test covering address classification across all networks
+
 ## 🤝 Contributing
 
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Test thoroughly with BCH mainnet/testnet
-4. Submit a pull request
+**Forking is the recommended way to run this software** — see [Project Status](#project-status)
+above. Run production from your own fork, and send anything useful back here.
+
+1. **Fork the repository** and deploy your pool from your fork, pinned to a commit you have tested
+2. Create a feature branch off `homolog`
+3. Test thoroughly — `make check` for units, `./testing/regtest-e2e.sh` for the money path,
+   then testnet before mainnet
+4. Submit a pull request describing what you observed, not just what you changed
+
+**Especially valuable contributions:**
+
+| What | Why it helps |
+|---|---|
+| Payout-path bug reports | This code writes coinbase outputs — every real-world edge case found is money someone doesn't lose |
+| Regression test cases | A failing scenario added to `testing/regtest-e2e.sh` is worth more than a description of the bug |
+| Production logs | Failover behaviour, vardiff under real ASICs, and rental-service quirks are hard to reproduce synthetically |
+| Miner/hardware compatibility reports | Which ASICs, firmware and rental services work (or don't) with which settings |
 
 ## 📝 License
 
@@ -607,13 +874,18 @@ GNU Public License V3. See [COPYING](COPYING) for details.
   - CashAddr implementation (2025)
   - Pool fee system (2025)
   - Multi-difficulty enhancements (2025)
+  - Per-address solo mining (2026)
   - BCH-specific optimizations
 - **Testing**: Successfully mining on BCH testnet since September 2025
+- **Contributors**: Everyone who has reported a bug, sent a log, or opened a PR — thank you
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/skaisser/ckpool/issues)
+- **Issues**: [GitHub Issues](https://github.com/skaisser/ckpool/issues) — bug reports and findings welcome
 - **Documentation**: [Wiki](https://github.com/skaisser/ckpool/wiki)
+- **Pool fee details**: [POOL_FEE.md](POOL_FEE.md)
+- **Solo mining notes**: [README-SOLOMINING](README-SOLOMINING)
+- **API reference**: [CKPOOL_API_GUIDE.md](CKPOOL_API_GUIDE.md)
 
 ---
 

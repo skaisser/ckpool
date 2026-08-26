@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <math.h>
@@ -130,7 +131,10 @@ struct user_instance {
 	char *secondaryuserid;
 	bool btcaddress;
 	bool script;
-	bool segwit;
+	/* Set for a solo user whose username did not classify as a BCH
+	 * address: authorised anyway (D2 smart-fallback decision), mining to
+	 * the pool's own btcaddress via a copy of sdata->txnbin/txnlen. */
+	bool pool_fallback;
 
 	/* A linked list of all connected instances of this user */
 	stratum_instance_t *clients;
@@ -297,6 +301,10 @@ struct stratum_instance {
 	bool passthrough; /* Is this a passthrough */
 	bool trusted; /* Is this a trusted remote server */
 	bool remote; /* Is this a remote client on a trusted remote server */
+
+	bool rental_diff; /* Difficulty already applied from useragent-based rental
+			    * service detection (NiceHash/MiningRigRentals), so the
+			    * mindiff_overrides pattern loop must not clobber it */
 };
 
 struct share {
@@ -392,8 +400,6 @@ struct stratifier_data {
 
 	char txnbin[48];
 	int txnlen;
-	char dontxnbin[48];
-	int dontxnlen;
 	char pooltxnbin[48];
 	int pooltxnlen;
 
@@ -530,6 +536,7 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 {
 	uint64_t *u64, g64, d64 = 0;
 	sdata_t *sdata = ckp->sdata;
+	bool poolfee_dust = false;
 	char header[272];
 	int len, ofs = 0;
 	ts_t now;
@@ -607,15 +614,22 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		double dbl64 = (double)g64 / 100 * ckp->poolfee;
 
 		d64 = dbl64;
-		g64 -= d64; // To guarantee integers add up to the original coinbasevalue
-		wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
-	} else if (ckp->donvalid && ckp->donation > 0) {
-		/* Fallback to donation if no pool fee */
-		double dbl64 = (double)g64 / 100 * ckp->donation;
-
-		d64 = dbl64;
-		g64 -= d64; // To guarantee integers add up to the original coinbasevalue
-		wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
+		/* Dust guard: a fee output below the 546 sat dust threshold
+		 * is non-standard and may be rejected by the network. Fall
+		 * through to the single-output path for this workbase,
+		 * paying the miner the full coinbasevalue, rather than
+		 * emitting a dust output. Outputs still sum exactly to
+		 * wb->coinbasevalue either way. */
+		if (d64 < 546) {
+			LOGWARNING("Pool fee output %"PRIu64" sats below dust threshold, omitting fee output", d64);
+			d64 = 0;
+			g64 = wb->coinbasevalue;
+			wb->coinb2bin[wb->coinb2len++] = 1 + wb->insert_witness;
+			poolfee_dust = true;
+		} else {
+			g64 -= d64; // To guarantee integers add up to the original coinbasevalue
+			wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
+		}
 	} else
 		wb->coinb2bin[wb->coinb2len++] = 1 + wb->insert_witness;
 
@@ -629,7 +643,7 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 	wb->coinb3bin = ckzalloc(256 + wb->insert_witness * (8 + witnessdata_size + 2));
 
 	/* Add pool operator fee or donation output */
-	if (ckp->poolvalid && ckp->poolfee > 0) {
+	if (ckp->poolvalid && ckp->poolfee > 0 && !poolfee_dust) {
 		u64 = (uint64_t *)wb->coinb3bin;
 		*u64 = htole64(d64);
 		wb->coinb3len += 8;
@@ -637,16 +651,11 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		wb->coinb3bin[wb->coinb3len++] = sdata->pooltxnlen;
 		memcpy(wb->coinb3bin + wb->coinb3len, sdata->pooltxnbin, sdata->pooltxnlen);
 		wb->coinb3len += sdata->pooltxnlen;
-	} else if (ckp->donvalid && ckp->donation > 0) {
-		u64 = (uint64_t *)wb->coinb3bin;
-		*u64 = htole64(d64);
-		wb->coinb3len += 8;
-
-		wb->coinb3bin[wb->coinb3len++] = sdata->dontxnlen;
-		memcpy(wb->coinb3bin + wb->coinb3len, sdata->dontxnbin, sdata->dontxnlen);
-		wb->coinb3len += sdata->dontxnlen;
-	} else {
-		ckp->donation = 0;
+	} else if (!poolfee_dust) {
+		/* Only permanently disable poolfee when it isn't configured
+		 * at all. A dust-suppressed poolfee is a per-workbase
+		 * condition (coinbasevalue too small this round) and must
+		 * not disable future, non-dust workbases. */
 		ckp->poolfee = 0;
 	}
 
@@ -709,8 +718,6 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 			LOGWARNING("Mining from any incoming username to address %s", ckp->btcaddress);
 			if (ckp->poolfee > 0 && ckp->poolvalid)
 				LOGWARNING("%.1f percent pool operator fee to %s", ckp->poolfee, ckp->pooladdress);
-			else if (ckp->donation)
-				LOGWARNING("%.1f percent donation to %s", ckp->donation, ckp->donaddress);
 		}
 	} else if (unlikely(!ckp->coinbase_valid)) {
 		/* Create a sample coinbase to test its validity in solo mode */
@@ -750,8 +757,6 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		free(cb);
 		ckp->coinbase_valid = true;
 		LOGWARNING("Mining solo to any incoming valid BTC address username");
-		if (ckp->donation)
-			LOGWARNING("%.1f percent donation to %s", ckp->donation, ckp->donaddress);
 	}
 
 	/* Set this just for node compatibility, though it's unused */
@@ -1044,7 +1049,10 @@ static void generate_userwbs(sdata_t *sdata, workbase_t *wb)
 
 	ck_wlock(&sdata->instance_lock);
 	HASH_ITER(hh, sdata->user_instances, instance, tmp) {
-		if (!instance->btcaddress)
+		/* Cover both real address users and pool-fallback users
+		 * (decision D2) -- both have a valid txnbin/txnlen to splice
+		 * into their per-user coinb2. */
+		if (!instance->txnlen)
 			continue;
 		__generate_userwb(sdata, wb, instance);
 	}
@@ -1437,58 +1445,6 @@ out:
 	return txns;
 }
 
-static const unsigned char witness_nonce[32] = {0};
-static const int witness_nonce_size = sizeof(witness_nonce);
-static const unsigned char witness_header[] = {0xaa, 0x21, 0xa9, 0xed};
-static const int witness_header_size = sizeof(witness_header);
-
-static void gbt_witness_data(workbase_t *wb, json_t *txn_array)
-{
-	int i, binlen, txncount = json_array_size(txn_array);
-	const char* hash;
-	json_t *arr_val;
-	uchar *hashbin;
-
-	binlen = txncount * 32 + 32;
-	hashbin = alloca(binlen + 32);
-	memset(hashbin, 0, 32);
-
-	for (i = 0; i < txncount; i++) {
-		char binswap[32];
-
-		arr_val = json_array_get(txn_array, i);
-		hash = json_string_value(json_object_get(arr_val, "hash"));
-		if (unlikely(!hash)) {
-			LOGERR("Hash missing for transaction");
-			return;
-		}
-		if (!hex2bin(binswap, hash, 32)) {
-			LOGERR("Failed to hex2bin hash in gbt_witness_data");
-			return;
-		}
-		bswap_256(hashbin + 32 + 32 * i, binswap);
-	}
-
-	// Build merkle root (copied from libblkmaker)
-	for (txncount++ ; txncount > 1 ; txncount /= 2) {
-		if (txncount % 2) {
-			// Odd number, duplicate the last
-			memcpy(hashbin + 32 * txncount, hashbin + 32 * (txncount - 1), 32);
-			txncount++;
-		}
-		for (i = 0; i < txncount; i += 2) {
-			// We overlap input and output here, on the first pair
-			gen_hash(hashbin + 32 * i, hashbin + 32 * (i / 2), 64);
-		}
-	}
-
-	memcpy(hashbin + 32, &witness_nonce, witness_nonce_size);
-	gen_hash(hashbin, hashbin + witness_header_size, 32 + witness_nonce_size);
-	memcpy(hashbin, witness_header, witness_header_size);
-	__bin2hex(wb->witnessdata, hashbin, 32 + witness_header_size);
-	wb->insert_witness = true;
-}
-
 /* This function assumes it will only receive a valid json gbt base template
  * since checking should have been done earlier, and creates the base template
  * for generating work templates. This is a ckmsgq so all uses of this function
@@ -1525,14 +1481,12 @@ retry:
 
 	wb->insert_witness = false;
 
+	/* BCH's GBT never returns default_witness_commitment (BCH has no
+	 * segwit); if a node ever sends one, warn and ignore it rather than
+	 * building BTC-style witness commitment data. */
 	witnessdata_check = json_string_value(json_object_get(wb->json, "default_witness_commitment"));
-	if (likely(witnessdata_check)) {
-		LOGDEBUG("Default witness commitment present, adding witness data");
-		gbt_witness_data(wb, txn_array);
-		// Verify against the pre-calculated value if it exists. Skip the size/OP_RETURN bytes.
-		if (wb->insert_witness && safecmp(witnessdata_check + 4, wb->witnessdata) != 0)
-			LOGERR("Witness from btcd: %s. Calculated Witness: %s", witnessdata_check + 4, wb->witnessdata);
-	}
+	if (unlikely(witnessdata_check))
+		LOGWARNING("Witness commitment present in GBT - not a BCH node?");
 
 	generate_coinbase(ckp, wb);
 
@@ -2067,6 +2021,17 @@ process_block(const workbase_t *wb, const char *coinbase, const int cblen,
 	int txns = wb->txns + 1;
 	char hexcoinbase[1024];
 
+	/* hexcoinbase can hold at most (sizeof(hexcoinbase) - 1) / 2 binary
+	 * bytes plus the null terminator __bin2hex() appends. Current
+	 * coinbases are ~200 bytes; this should never trigger, but a
+	 * malformed/oversized coinbase must not silently overflow a
+	 * fixed-size stack buffer. */
+	if (unlikely(cblen > (int)(sizeof(hexcoinbase) - 1) / 2)) {
+		LOGEMERG("Coinbase length %d exceeds max %d, refusing to build block",
+			 cblen, (int)(sizeof(hexcoinbase) - 1) / 2);
+		return NULL;
+	}
+
 	flip_32(flip32, hash);
 	__bin2hex(blockhash, flip32, 32);
 
@@ -2261,7 +2226,10 @@ static void submit_node_block(ckpool_t *ckp, sdata_t *sdata, json_t *val)
 
 	/* Now we have enough to assemble a block */
 	gbt_block = process_block(wb, coinbase, cblen, swap, hash, flip32, blockhash);
-	ret = local_block_submit(ckp, gbt_block, flip32, wb->height);
+	/* process_block returns NULL if the coinbase was too large to fit
+	 * its fixed-size hex buffer (should never happen); skip submission
+	 * rather than passing NULL through to the generator. */
+	ret = gbt_block ? local_block_submit(ckp, gbt_block, flip32, wb->height) : false;
 
 	JSON_CPACK(bval, "{si,ss,ss,sI,ss,ss,si,ss,sI,sf,ss,ss,ss,ss}",
 			 "height", wb->height,
@@ -2433,8 +2401,7 @@ static sdata_t *duplicate_sdata(const sdata_t *sdata)
 	dsdata->ckp = sdata->ckp;
 
 	/* Copy the transaction binaries for workbase creation */
-	memcpy(dsdata->txnbin, sdata->txnbin, 40);
-	memcpy(dsdata->dontxnbin, sdata->dontxnbin, 40);
+	memcpy(dsdata->txnbin, sdata->txnbin, sizeof(dsdata->txnbin));
 
 	/* Use the same work queues for all subproxies */
 	dsdata->ssends = sdata->ssends;
@@ -5016,6 +4983,7 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 		/* Apply NiceHash difficulty immediately */
 		client->suggest_diff = nicehash_diff;
 		client->diff = client->old_diff = nicehash_diff;
+		client->rental_diff = true;
 		LOGNOTICE("NiceHash detected from useragent '%s' for client %s, applied difficulty %ld",
 			client->useragent, client->identity, nicehash_diff);
 	} else if (strcasestr(client->useragent, "miningrigrentals")) {
@@ -5036,6 +5004,7 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 		/* Apply MiningRigRentals difficulty immediately */
 		client->suggest_diff = mrr_diff;
 		client->diff = client->old_diff = mrr_diff;
+		client->rental_diff = true;
 		LOGNOTICE("MiningRigRentals detected from useragent '%s' for client %s, applied difficulty %ld",
 			client->useragent, client->identity, mrr_diff);
 	}
@@ -5416,6 +5385,70 @@ static worker_instance_t *get_worker(sdata_t *sdata, user_instance_t *user, cons
 	return get_create_worker(sdata, user, workername, &dummy);
 }
 
+/* Decision D2 (smart fallback): true when username is "address-shaped" --
+ * it looks like an attempted BCH address even if it turns out not to
+ * validate. Covers an explicit cashaddr prefix, a bare-cashaddr length and
+ * charset, or a legacy Base58Check leading version character, length and
+ * charset. Deliberately conservative: it must not match ordinary worker
+ * names such as "rig01", "skaisser" or "worker". Used by the solo auth
+ * gate to distinguish a typo'd address (reject with an explicit error)
+ * from a genuinely non-address username (pool-fallback authorize). */
+static bool looks_like_address(const char *username)
+{
+	static const char cashaddr_charset[] = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+	static const char b58_charset[] =
+		"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+	const bool mainnet = !strcasecmp(bch_get_cashaddr_prefix(), "bitcoincash");
+	size_t len, i;
+
+	if (!username)
+		return false;
+	len = strlen(username);
+	if (!len)
+		return false;
+
+	if (!strncasecmp(username, "bitcoincash:", 12) ||
+	    !strncasecmp(username, "bchtest:", 8) ||
+	    !strncasecmp(username, "bchreg:", 7))
+		return true;
+
+	if (len == 42) {
+		bool all_cashaddr = true;
+
+		for (i = 0; i < len; i++) {
+			if (!strchr(cashaddr_charset, tolower((unsigned char)username[i]))) {
+				all_cashaddr = false;
+				break;
+			}
+		}
+		if (all_cashaddr)
+			return true;
+	}
+
+	/* Legacy Base58Check leading chars follow the version byte that
+	 * bch_classify_legacy() accepts: mainnet 0x00/0x05 -> '1'/'3', and on
+	 * testnet/regtest 0x6f/0xc4 -> 'm'/'n'/'2'. The non-mainnet chars are
+	 * gated on the active network so that mainnet worker names beginning
+	 * with 'm', 'n' or '2' keep authorising as pool-fallback users. */
+	if ((username[0] == '1' || username[0] == '3' ||
+	     (!mainnet && (username[0] == 'm' || username[0] == 'n' ||
+			   username[0] == '2'))) &&
+	    len >= 25 && len <= 36) {
+		bool all_b58 = true;
+
+		for (i = 0; i < len; i++) {
+			if (!strchr(b58_charset, username[i])) {
+				all_b58 = false;
+				break;
+			}
+		}
+		if (all_b58)
+			return true;
+	}
+
+	return false;
+}
+
 /* This simply strips off the first part of the workername and matches it to a
  * user or creates a new one. Needs to be entered with client holding a ref
  * count. */
@@ -5424,6 +5457,7 @@ static user_instance_t *generate_user(ckpool_t *ckp, stratum_instance_t *client,
 {
 	char *base_username = strdupa(workername), *username;
 	bool new_user = false, new_worker = false;
+	bool addr_valid = false, addr_script = false, addr_segwit = false;
 	sdata_t *sdata = ckp->sdata;
 	worker_instance_t *worker;
 	user_instance_t *user;
@@ -5435,6 +5469,22 @@ static user_instance_t *generate_user(ckpool_t *ckp, stratum_instance_t *client,
 	len = strlen(username);
 	if (unlikely(len > 127))
 		username[127] = '\0';
+
+	/* Classify the already-split username as a BCH address before user
+	 * lookup -- Phase 2 made this fully local (no RPC round trip), so
+	 * doing it here is cheap. This lets us normalize cashaddr usernames
+	 * to lowercase up front: "BITCOINCASH:QQ...", an uppercase bare
+	 * cashaddr, and the canonical lowercase form must all resolve to the
+	 * same user account instead of silently creating duplicates. Legacy
+	 * Base58Check addresses are case-significant and are left untouched. */
+	if (!ckp->proxy)
+		addr_valid = generator_checkaddr(ckp, username, &addr_script, &addr_segwit);
+	if (addr_valid && (strchr(username, ':') || strlen(username) == 42)) {
+		char *p;
+
+		for (p = username; *p; p++)
+			*p = tolower((unsigned char)*p);
+	}
 
 	user = get_create_user(sdata, username, &new_user);
 	worker = get_create_worker(sdata, user, workername, &new_worker);
@@ -5449,10 +5499,35 @@ static user_instance_t *generate_user(ckpool_t *ckp, stratum_instance_t *client,
 	ck_wunlock(&sdata->instance_lock);
 
 	if (!ckp->proxy && (new_user || !user->btcaddress)) {
-		/* Is this a btc address based username? */
-		if (generator_checkaddr(ckp, username, &user->script, &user->segwit)) {
-			user->btcaddress = true;
-			user->txnlen = address_to_txn(user->txnbin, username, user->script, user->segwit);
+		if (addr_valid) {
+			int txnlen = address_to_txn(user->txnbin, username, addr_script, addr_segwit);
+
+			if (txnlen > 0) {
+				user->btcaddress = true;
+				user->script = addr_script;
+				user->txnlen = txnlen;
+			} else {
+				LOGWARNING("Address %s validated but address_to_txn returned 0 bytes, "
+					   "treating as not an address", username);
+				addr_valid = false;
+			}
+		}
+		/* Solo BCH mining, smart fallback (decision D2): a username
+		 * that is not a valid address but is address-shaped (a typo)
+		 * is left to the auth gate in parse_authorise() to reject
+		 * with an explicit error; any other non-address username
+		 * mines to the pool's own btcaddress. */
+		if (!addr_valid && ckp->btcsolo) {
+			if (looks_like_address(username)) {
+				LOGWARNING("Username %s looks like a BCH address but failed validation",
+					   username);
+			} else if (!user->pool_fallback) {
+				memcpy(user->txnbin, sdata->txnbin, sizeof(user->txnbin));
+				user->txnlen = sdata->txnlen;
+				user->pool_fallback = true;
+				LOGNOTICE("User %s is not a BCH address, mining to pool address",
+					  username);
+			}
 		}
 	}
 	if (new_user) {
@@ -5585,8 +5660,16 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 	 * till after this point */
 	client->workername = strdup(buf);
 
-	/* First check for mindiff overrides based on workername patterns */
-	if (ckp->mindiff_overrides && json_is_object(ckp->mindiff_overrides)) {
+	/* First check for mindiff overrides based on workername patterns.
+	 * Skipped entirely for rental service clients (NiceHash/MiningRigRentals)
+	 * already handled by useragent detection in parse_subscribe(): with
+	 * BCH-address usernames a short override key (e.g. "s9") can
+	 * substring-match inside the address and clobber the rental service's
+	 * already-applied difficulty, causing NiceHash to reject the rig. */
+	if (client->rental_diff) {
+		LOGINFO("Client %s workername '%s' skipping mindiff_overrides pattern loop, rental difficulty already applied",
+			client->identity, client->workername);
+	} else if (ckp->mindiff_overrides && json_is_object(ckp->mindiff_overrides)) {
 		const char *pattern;
 		json_t *diff_val;
 
@@ -5663,8 +5746,18 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 			goto out;
 		}
 	}
-	if (!ckp->btcsolo || client->user_instance->btcaddress)
+	/* Three-way solo auth gate (decision D2): a real address-based user
+	 * or a pool-fallback user (username classified in generate_user() as
+	 * not address-shaped) is authorized. The remaining case -- solo,
+	 * neither btcaddress nor pool_fallback -- only happens when the
+	 * username looked like an attempted address but failed validation;
+	 * reject it with an explicit error instead of the generic auth
+	 * failure message so a typo is obvious to the miner. */
+	if (!ckp->btcsolo || user->btcaddress || user->pool_fallback)
 		ret = true;
+	else if (looks_like_address(user->username))
+		*err_val = json_string("Invalid BCH address (bad checksum or wrong network) - "
+					"check your username for typos");
 
 	/* We do the preauth etc. in remote mode, and leave final auth to
 	 * upstream pool to complete. */
@@ -5758,7 +5851,7 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	tv_time(&now_t);
 
 	ck_rlock(&sdata->workbase_lock);
-	next_blockid = sdata->workbase_id + 1;
+	next_blockid = sdata->workbase_id;
 	if (ckp->proxy)
 		network_diff = sdata->current_workbase->diff;
 	else
@@ -5788,7 +5881,6 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 
 	client->ssdc++;
 	bdiff = sane_tdiff(&now_t, &client->first_share);
-	bias = time_bias(bdiff, 300);
 	tdiff = sane_tdiff(&now_t, &client->ldc);
 
 	/* Check the difficulty every 240 seconds or as many shares as we
@@ -5801,8 +5893,17 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 		return;
 	}
 
-	/* Diff rate ratio */
-	dsps = client->dsps5 / bias;
+	/* Diff rate ratio.
+	 * If shares are coming in fast, calculate based on
+	 * the one minute rolling average for quick diff adjustment, otherwise
+	 * use the 5 minute rolling average */
+	if (client->ssdc >= 72) {
+		bias = time_bias(bdiff, 60);
+		dsps = client->dsps1 / bias;
+	} else {
+		bias = time_bias(bdiff, 300);
+		dsps = client->dsps5 / bias;
+	}
 	drr = dsps / (double)client->diff;
 
 	/* Optimal rate product is 0.3, allow some hysteresis. */
@@ -5941,8 +6042,10 @@ test_blocksolve(const stratum_instance_t *client, const workbase_t *wb, const uc
 	}
 
 	/* Submit block locally after sending it to remote locations avoiding
-	 * the delay of local verification */
-	ret = local_block_submit(ckp, gbt_block, flip32, wb->height);
+	 * the delay of local verification. gbt_block may be NULL if
+	 * process_block() rejected an oversized coinbase (should never
+	 * happen); skip submission rather than passing NULL through. */
+	ret = gbt_block ? local_block_submit(ckp, gbt_block, flip32, wb->height) : false;
 	if (ret)
 		block_solve(ckp, val);
 	else
@@ -5951,8 +6054,17 @@ test_blocksolve(const stratum_instance_t *client, const workbase_t *wb, const uc
 	json_decref(val);
 }
 
-/* Entered with instance_lock held */
-static inline uchar *__user_coinb2(const stratum_instance_t *client, const workbase_t *wb, int *cb2len)
+/* Entered with instance_lock held. In solo mode every authorised client has
+ * a userwb generated for it (address users, and pool-fallback users per
+ * decision D2) before it can receive work, so the missing-userwb case here
+ * should not normally happen; if it somehow does, wb->coinb2bin/coinb2len
+ * alone is NOT a safe fallback in solo mode -- that raw template's
+ * output-count byte says 2 but carries no output scripts at all, i.e. a
+ * malformed coinbase. Splice the pool's own output script (sdata->txnbin)
+ * into the caller-provided scratch buffer instead. scratch must be sized
+ * at least wb->coinb2len + 1 + sdata->txnlen + wb->coinb3len. */
+static inline uchar *__user_coinb2(sdata_t *sdata, const stratum_instance_t *client,
+				    const workbase_t *wb, int *cb2len, uchar *scratch)
 {
 	struct userwb *userwb;
 	int64_t id;
@@ -5962,10 +6074,30 @@ static inline uchar *__user_coinb2(const stratum_instance_t *client, const workb
 
 	id = wb->id;
 	HASH_FIND_I64(client->user_instance->userwbs, &id, userwb);
-	if (unlikely(!userwb))
-		goto out_nouserwb;
-	*cb2len = userwb->coinb2len;
-	return userwb->coinb2bin;
+	if (likely(userwb)) {
+		*cb2len = userwb->coinb2len;
+		return userwb->coinb2bin;
+	}
+
+	{
+		static time_t last_warn;
+		time_t now_t = time(NULL);
+
+		if (now_t != last_warn) {
+			last_warn = now_t;
+			LOGWARNING("Client %s user %s missing userwb for solo workbase %"PRId64
+				   ", falling back to pool coinbase script",
+				   client->identity, client->user_instance->username, wb->id);
+		}
+	}
+	memcpy(scratch, wb->coinb2bin, wb->coinb2len);
+	*cb2len = wb->coinb2len;
+	scratch[(*cb2len)++] = sdata->txnlen;
+	memcpy(scratch + *cb2len, sdata->txnbin, sdata->txnlen);
+	*cb2len += sdata->txnlen;
+	memcpy(scratch + *cb2len, wb->coinb3bin, wb->coinb3len);
+	*cb2len += wb->coinb3len;
+	return scratch;
 
 out_nouserwb:
 	*cb2len = wb->coinb2len;
@@ -5982,10 +6114,10 @@ static double submission_diff(sdata_t *sdata, const stratum_instance_t *client, 
 	char *coinbase, data[80];
 	uchar swap[80], hash1[32];
 	int cblen, i, cb2len;
-	uchar *coinb2bin;
+	uchar *coinb2bin, *coinb2scratch;
 	double ret;
 
-	/* Leave ample enough room for donation generation address (~25) + length counter + user generation
+	/* Leave ample enough room for pool fee generation address (~25) + length counter + user generation
 	 * wb->coinb1len + wb->enonce1constlen + wb->enonce1varlen + wb->enonce2varlen + wb->coinb2len + 25 + cb2len */
 
 	coinbase = alloca(1024);
@@ -5996,8 +6128,14 @@ static double submission_diff(sdata_t *sdata, const stratum_instance_t *client, 
 	hex2bin(coinbase + cblen, nonce2, wb->enonce2varlen);
 	cblen += wb->enonce2varlen;
 
+	/* Only used by __user_coinb2()'s defensive solo pool-script splice
+	 * when a client is somehow missing its userwb; sized generously
+	 * enough to hold wb->coinb2bin + length byte + sdata->txnbin +
+	 * wb->coinb3bin regardless. */
+	coinb2scratch = alloca(wb->coinb2len + 1 + sizeof(sdata->txnbin) + wb->coinb3len);
+
 	ck_rlock(&sdata->instance_lock);
-	coinb2bin = __user_coinb2(client, wb, &cb2len);
+	coinb2bin = __user_coinb2(sdata, client, wb, &cb2len, coinb2scratch);
 	memcpy(coinbase + cblen, coinb2bin, cb2len);
 	ck_runlock(&sdata->instance_lock);
 
@@ -6314,9 +6452,12 @@ out_put:
 	put_workbase(sdata, wb);
 out_nowb:
 
-	/* Accept shares of the old diff until the next update */
+	/* Accept shares of the old diff until the next update. Strictly
+	 * speaking clients should not use the new diff until the next update
+	 * but very few clients do this properly, so accept whichever is the
+	 * minimum. */
 	if (id < client->diff_change_job_id)
-		diff = client->old_diff;
+		diff = MIN(diff, client->old_diff);
 	if (!invalid) {
 		char wdiffsuffix[16];
 
@@ -6631,7 +6772,7 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 	client->suggest_diff = sdiff;
 	if (client->diff == sdiff)
 		return;
-	client->diff_change_job_id = client->sdata->workbase_id + 1;
+	client->diff_change_job_id = client->sdata->workbase_id;
 	client->old_diff = client->diff;
 	client->diff = sdiff;
 	stratum_send_diff(ckp->sdata, client);
@@ -7012,10 +7153,14 @@ static user_instance_t *generate_remote_user(ckpool_t *ckp, const char *workerna
 	user = get_create_user(sdata, username, &new_user);
 
 	if (!ckp->proxy && (new_user || !user->btcaddress)) {
+		/* segwit is always false on BCH; user_instance no longer
+		 * stores it (Phase 7), so a throwaway local receives it. */
+		bool segwit_unused;
+
 		/* Is this a btc address based username? */
-		if (generator_checkaddr(ckp, username, &user->script, &user->segwit)) {
+		if (generator_checkaddr(ckp, username, &user->script, &segwit_unused)) {
 			user->btcaddress = true;
-			user->txnlen = address_to_txn(user->txnbin, username, user->script, user->segwit);
+			user->txnlen = address_to_txn(user->txnbin, username, user->script, segwit_unused);
 		}
 	}
 	if (new_user) {
@@ -7103,9 +7248,12 @@ static void send_auth_success(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t 
 	free(buf);
 }
 
-static void send_auth_failure(sdata_t *sdata, stratum_instance_t *client)
+/* reason may be NULL for the generic message; when non-NULL (e.g. the
+ * explicit solo-mode address-typo error set in parse_authorise()'s err_val)
+ * it is sent to the client verbatim instead. */
+static void send_auth_failure(sdata_t *sdata, stratum_instance_t *client, const char *reason)
 {
-	stratum_send_message(sdata, client, "Failed authorisation :(");
+	stratum_send_message(sdata, client, reason ? : "Failed authorisation :(");
 }
 
 /* For finding a client by its virtualid instead of client->id. This is an
@@ -7161,7 +7309,7 @@ void parse_upstream_auth(ckpool_t *ckp, json_t *val)
 	if (ret)
 		send_auth_success(ckp, sdata, client);
 	else
-		send_auth_failure(sdata, client);
+		send_auth_failure(sdata, client, NULL);
 	send_auth_response(sdata, client_id, ret, id_val, err_val);
 	client_auth(ckp, client, client->user_instance, ret);
 	dec_instance_ref(sdata, client);
@@ -7289,8 +7437,11 @@ static void parse_remote_block(ckpool_t *ckp, sdata_t *sdata, json_t *val, const
 		send_nodes_block(sdata, val, client_id);
 		/* We rely on the remote server to give us the ID_BLOCK
 		 * responses, so only use this response to determine if we
-		 * should reset the best shares. */
-		if (local_block_submit(ckp, gbt_block, flip32, wb->height)) {
+		 * should reset the best shares. gbt_block may be NULL if
+		 * process_block() rejected an oversized coinbase (should
+		 * never happen); skip submission rather than passing NULL
+		 * through. */
+		if (gbt_block && local_block_submit(ckp, gbt_block, flip32, wb->height)) {
 			block_share_summary(sdata);
 			reset_bestshares(sdata);
 		}
@@ -7845,8 +7996,12 @@ static void sauth_process(ckpool_t *ckp, json_params_t *jp)
 			goto out;
 		}
 		send_auth_success(ckp, sdata, client);
-	} else
-		send_auth_failure(sdata, client);
+	} else {
+		const char *reason = (err_val && json_is_string(err_val)) ?
+				      json_string_value(err_val) : NULL;
+
+		send_auth_failure(sdata, client, reason);
+	}
 	send_auth_response(sdata, client_id, ret, jp->id_val, err_val);
 	if (!ret)
 		goto out;
@@ -8289,8 +8444,11 @@ static void *statsupdate(void *arg)
 
 		ASPRINTF(&fname, "%s/pool/pool.status", ckp->logdir);
 		fp = fopen(fname, "we");
-		if (unlikely(!fp))
+		if (unlikely(!fp)) {
 			LOGERR("Failed to fopen %s", fname);
+			dealloc(fname);
+			goto out_status;
+		}
 		dealloc(fname);
 
 		JSON_CPACK(val, "{si,si,si,si,si,si}",
@@ -8338,6 +8496,7 @@ static void *statsupdate(void *arg)
 		dealloc(s);
 		fclose(fp);
 
+out_status:
 		if (ckp->proxy && sdata->proxy) {
 			proxy_t *proxy, *proxytmp, *subproxy, *subtmp;
 
@@ -8744,22 +8903,24 @@ void *stratifier(void *arg)
 		cksleep_ms(10);
 
 	if (!ckp->proxy) {
-		if (!generator_checkaddr(ckp, ckp->btcaddress, &ckp->script, &ckp->segwit)) {
+		/* segwit is always false on BCH; ckp no longer stores it
+		 * (Phase 7), so throwaway locals receive the output params. */
+		bool segwit_unused, poolsegwit_unused;
+
+		if (!generator_checkaddr(ckp, ckp->btcaddress, &ckp->script, &segwit_unused)) {
 			LOGEMERG("Fatal: btcaddress invalid according to bitcoind");
 			goto out;
 		}
 
 		/* Store this for use elsewhere */
 		hex2bin(scriptsig_header_bin, scriptsig_header, 41);
-		sdata->txnlen = address_to_txn(sdata->txnbin, ckp->btcaddress, ckp->script, ckp->segwit);
-
-		/* Donation feature removed - no longer checking donation addresses */
+		sdata->txnlen = address_to_txn(sdata->txnbin, ckp->btcaddress, ckp->script, segwit_unused);
 
 		/* Validate pool operator fee address */
 		if (ckp->pooladdress && ckp->poolfee > 0) {
-			if (generator_checkaddr(ckp, ckp->pooladdress, &ckp->poolscript, &ckp->poolsegwit)) {
+			if (generator_checkaddr(ckp, ckp->pooladdress, &ckp->poolscript, &poolsegwit_unused)) {
 				ckp->poolvalid = true;
-				sdata->pooltxnlen = address_to_txn(sdata->pooltxnbin, ckp->pooladdress, ckp->poolscript, ckp->poolsegwit);
+				sdata->pooltxnlen = address_to_txn(sdata->pooltxnbin, ckp->pooladdress, ckp->poolscript, poolsegwit_unused);
 				LOGNOTICE("Pool operator fee address valid %s (%.1f%%)", ckp->pooladdress, ckp->poolfee);
 			} else {
 				LOGWARNING("Pool fee address %s is invalid, disabling pool fee", ckp->pooladdress);

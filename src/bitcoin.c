@@ -30,86 +30,49 @@ static bool check_required_rule(const char* rule)
 	return false;
 }
 
-/* Take a bitcoin address and do some sanity checks on it, then send it to
- * bitcoind to see if it's a valid address */
+/* Take a BCH address (cashaddr or legacy Base58Check) and classify it
+ * entirely locally via bch_classify_address() -- no RPC round trip. This
+ * guarantees validation can never disagree with address_to_txn()'s script
+ * construction, and keeps validation working even if bitcoind is
+ * momentarily unreachable at authorize time. cs is kept for signature
+ * compatibility with existing callers; it is unused on the classified
+ * path. BCH has no segwit, so *segwit always comes back false (the
+ * parameter itself is not removed here: its prototype lives in
+ * bitcoin.h/generator.h, outside this cleanup's file scope -- the
+ * always-false storage it feeds was removed from the callers instead). */
 bool validate_address(connsock_t *cs, const char *address, bool *script, bool *segwit)
 {
-	json_t *val, *res_val, *valid_val, *tmp_val;
-	char rpc_req[128];
-	bool ret = false;
 	uint8_t hash160[20];
-	bool is_cashaddr = false;
-	bool is_p2sh = false;
+	bch_addr_type_t type;
+
+	(void)cs;
 
 	if (unlikely(!address)) {
 		LOGWARNING("Null address passed to validate_address");
-		return ret;
+		return false;
 	}
 
-	/* Check if it's a CashAddr format */
-	if (strncasecmp(address, "bitcoincash:", 12) == 0 ||
-	    strncasecmp(address, "bchtest:", 8) == 0 ||
-	    strncasecmp(address, "bchreg:", 7) == 0) {
-		if (cashaddr_decode_simple(address, hash160, &is_p2sh)) {
-			is_cashaddr = true;
-			*script = is_p2sh;
-			*segwit = false;
-			LOGINFO("Valid CashAddr %s (P2%s)", address, is_p2sh ? "SH" : "PKH");
-			return true;
-		} else {
-			LOGWARNING("Invalid CashAddr format: %s", address);
-			return false;
-		}
+	type = bch_classify_address(address, bch_get_cashaddr_prefix(), hash160);
+	switch (type) {
+	case BCH_ADDR_CASHADDR_P2PKH:
+	case BCH_ADDR_LEGACY_P2PKH:
+		*script = false;
+		*segwit = false;
+		LOGINFO("Valid BCH address %s (P2PKH%s)", address,
+			type == BCH_ADDR_CASHADDR_P2PKH ? ", CashAddr" : ", legacy");
+		return true;
+	case BCH_ADDR_CASHADDR_P2SH:
+	case BCH_ADDR_LEGACY_P2SH:
+		*script = true;
+		*segwit = false;
+		LOGINFO("Valid BCH address %s (P2SH%s)", address,
+			type == BCH_ADDR_CASHADDR_P2SH ? ", CashAddr" : ", legacy");
+		return true;
+	case BCH_ADDR_INVALID:
+	default:
+		LOGWARNING("Invalid BCH address: %s", address);
+		return false;
 	}
-
-	snprintf(rpc_req, 128, "{\"method\": \"validateaddress\", \"params\": [\"%s\"]}\n", address);
-	val = json_rpc_response(cs, rpc_req);
-	if (!val) {
-		/* May get a parse error with an invalid address */
-		LOGNOTICE("%s:%s Failed to get valid json response to validate_address %s",
-			  cs->url, cs->port, address);
-		return ret;
-	}
-	res_val = json_object_get(val, "result");
-	if (!res_val) {
-		LOGERR("Failed to get result json response to validate_address");
-		goto out;
-	}
-	valid_val = json_object_get(res_val, "isvalid");
-	if (!valid_val) {
-		LOGERR("Failed to get isvalid json response to validate_address");
-		goto out;
-	}
-	if (!json_is_true(valid_val)) {
-		LOGDEBUG("Bitcoin address %s is NOT valid", address);
-		goto out;
-	}
-	ret = true;
-	tmp_val = json_object_get(res_val, "isscript");
-	if (unlikely(!tmp_val)) {
-		/* All recent bitcoinds with wallet support built in should
-		 * support this, if not, look for addresses the braindead way
-		 * to tell if it's a script address. */
-		LOGDEBUG("No isscript support from bitcoind");
-		if (address[0] == '3' || address[0] == '2')
-			*script = true;
-		/* Now look to see this isn't a bech32: We can't support
-		 * bech32 without knowing if it's a pubkey or a script */
-		else if (address[0] != '1' && address[0] != 'm')
-			ret = false;
-		goto out;
-	}
-	*script = json_is_true(tmp_val);
-	tmp_val = json_object_get(res_val, "iswitness");
-	if (unlikely(!tmp_val))
-		goto out;
-	*segwit = json_is_true(tmp_val);
-	LOGDEBUG("Bitcoin address %s IS valid%s%s", address, *script ? " script" : "",
-		 *segwit ? " segwit" : "");
-out:
-	if (val)
-		json_decref(val);
-	return ret;
 }
 
 json_t *validate_txn(connsock_t *cs, const char *txn)

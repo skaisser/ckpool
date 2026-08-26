@@ -188,10 +188,10 @@ cat > "$INSTALL_DIR/ckpool.conf" << 'EOF'
         "notify": true,
         "zmqnotify": "tcp://127.0.0.1:28333"
     }],
-    "btcaddress": "bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy",
+    "bchaddress": "bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy",
     "btcsig": "EloPool.cloud",
-    "pooladdress": "bitcoincash:qp7azrnl28ezdvgnyjx3qmwfs8vph4jtxq9d7sdhez",
-    "poolfee": 1.0,
+    "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w",
+    "poolfee": 2.0,
     "blockpoll": 50,
     "update_interval": 15,
     "serverurl": ["0.0.0.0:3333"],
@@ -227,10 +227,10 @@ cat > "$INSTALL_DIR/ckpool-testnet.conf" << 'EOF'
         "notify": true,
         "zmqnotify": "tcp://127.0.0.1:28332"
     }],
-    "btcaddress": "bchtest:qz3ah8rh7juw3gsstsnce3fnyura3d34qc6qqtc3zs",
+    "bchaddress": "bchtest:qz3ah8rh7juw3gsstsnce3fnyura3d34qc6qqtc3zs",
     "btcsig": "EloPool.cloud/TestNet",
     "pooladdress": "bchtest:qp7azrnl28ezdvgnyjx3qmwfs8vph4jtxq9d7sdhez",
-    "poolfee": 1.0,
+    "poolfee": 2.0,
     "blockpoll": 50,
     "update_interval": 15,
     "serverurl": ["0.0.0.0:3334"],
@@ -306,9 +306,9 @@ echo "  • ckpool-testnet.conf - Testnet configuration (port 3334)"
 echo
 echo -e "${YELLOW}Before starting:${NC}"
 echo "1. Edit the config file with your BCH node credentials"
-echo "2. Update btcaddress with your mining address (receives block rewards)"
+echo "2. Update bchaddress with your mining address (fallback for non-address usernames)"
 echo "3. Update pooladdress with your pool operator fee address"
-echo "4. Set poolfee to desired percentage (e.g., 1.0 for 1%, 2.0 for 2%)"
+echo "4. Set poolfee to desired percentage (e.g., 2.0 for 2%, configurable 0-50)"
 echo "5. Update sockdir if running multiple instances (avoid conflicts)"
 echo
 echo "To start:"

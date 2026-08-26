@@ -141,7 +141,7 @@ echo "Creating systemd service..."
 SERVICE_FILE="/etc/systemd/system/ckpool.service"
 cat > "$SERVICE_FILE" << EOF
 [Unit]
-Description=CKPool Bitcoin Cash Mining Pool (Custom Fork)
+Description=CKPool Bitcoin Cash Mining Pool (Solo Mode with Auto-Pay)
 Documentation=https://github.com/skaisser/ckpool
 After=network.target network-online.target
 Wants=network-online.target
@@ -151,7 +151,7 @@ Type=simple
 User=$ACTUAL_USER
 Group=$ACTUAL_USER
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/ckpool -c $INSTALL_DIR/ckpool.conf -L
+ExecStart=$INSTALL_DIR/ckpool -c $INSTALL_DIR/ckpool.conf -L -B
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
 RestartSec=10
@@ -187,7 +187,7 @@ if [ -f "$INSTALL_DIR/ckpool-testnet.conf" ]; then
     TESTNET_SERVICE_FILE="/etc/systemd/system/ckpool-testnet.service"
     cat > "$TESTNET_SERVICE_FILE" << EOF
 [Unit]
-Description=CKPool Bitcoin Cash Mining Pool (Testnet - Custom Fork)
+Description=CKPool Bitcoin Cash Mining Pool (Testnet - Solo Mode with Auto-Pay)
 Documentation=https://github.com/skaisser/ckpool
 After=network.target network-online.target
 Wants=network-online.target
@@ -197,7 +197,7 @@ Type=simple
 User=$ACTUAL_USER
 Group=$ACTUAL_USER
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/ckpool -c $INSTALL_DIR/ckpool-testnet.conf -L
+ExecStart=$INSTALL_DIR/ckpool -c $INSTALL_DIR/ckpool-testnet.conf -L -B
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
 RestartSec=10
@@ -435,9 +435,9 @@ done
 echo
 echo -e "${YELLOW}Before starting, please configure:${NC}"
 echo "1. Edit $INSTALL_DIR/ckpool.conf with your BCH node credentials"
-echo "2. Update btcaddress with your mining address"
+echo "2. Update bchaddress with your mining address (fallback for non-address usernames)"
 echo "3. Update pooladdress with your pool operator fee address"
-echo "4. Set poolfee to desired percentage"
+echo "4. Set poolfee to desired percentage (default 2.0%, configurable 0-50)"
 echo
 echo "Service management commands:"
 echo "  sudo systemctl start ckpool          # Start the pool"
