@@ -75,49 +75,113 @@ static bool convert_bits_5to8(uint8_t *out, size_t *outlen, const uint8_t *in, s
     return true;
 }
 
-/* Extract hash160 from CashAddr - simplified version */
-bool cashaddr_decode_simple(const char *addr, uint8_t *hash160, bool *is_p2sh)
+/* Return false if the string mixes upper and lower case letters. Digits,
+ * ':' and other non-alphabetic characters are case-neutral and ignored. */
+static bool case_is_consistent(const char *s)
 {
-    if (!addr || !hash160 || !is_p2sh) return false;
-    
+    bool has_lower = false, has_upper = false;
+
+    for (const char *p = s; *p; ++p) {
+        if (*p >= 'a' && *p <= 'z')
+            has_lower = true;
+        else if (*p >= 'A' && *p <= 'Z')
+            has_upper = true;
+    }
+    return !(has_lower && has_upper);
+}
+
+/* Extract hash160 from CashAddr, verifying the checksum and the network
+ * prefix against expected_prefix (e.g. "bitcoincash", "bchtest", "bchreg").
+ *
+ * A prefixed address (foo:payload) must have a prefix that matches
+ * expected_prefix (case-insensitively). A prefixless address is checksummed
+ * directly against expected_prefix, which naturally rejects addresses meant
+ * for a different network since the prefix participates in the checksum.
+ *
+ * The whole address (prefix and payload) must be either all-lowercase or
+ * all-uppercase -- mixed case is rejected. Uppercase input is lowercased
+ * for decoding after the case check passes.
+ */
+bool cashaddr_decode_checked(const char *addr, const char *expected_prefix,
+			      uint8_t *hash160, bool *is_p2sh)
+{
+    if (!addr || !expected_prefix || !hash160 || !is_p2sh) return false;
+
+    /* Reject mixed-case input before doing anything else */
+    if (!case_is_consistent(addr)) {
+        LOGDEBUG("Mixed-case CashAddr rejected: %s", addr);
+        return false;
+    }
+
     /* Find the separator */
     const char *sep = strchr(addr, ':');
     const char *payload;
-    size_t prefix_len;
-    
+
     if (sep) {
-        prefix_len = sep - addr;
+        size_t prefix_len = sep - addr;
+        size_t expected_len = strlen(expected_prefix);
+
+        if (prefix_len != expected_len ||
+            strncasecmp(addr, expected_prefix, prefix_len) != 0) {
+            LOGDEBUG("CashAddr prefix mismatch: %s (expected %s)", addr, expected_prefix);
+            return false;
+        }
         payload = sep + 1;
     } else {
-        /* No prefix, assume it's just the payload */
+        /* No prefix; checksum against expected_prefix below */
         payload = addr;
-        prefix_len = 0;
     }
-    
+
     /* Decode the payload */
     size_t payload_len = strlen(payload);
     if (payload_len < 14 || payload_len > 112) {
         LOGDEBUG("Invalid payload length: %zu", payload_len);
         return false;
     }
-    
+
     uint8_t data[112];
     size_t data_len = 0;
-    
+
     /* Convert charset to values */
     for (size_t i = 0; i < payload_len; ++i) {
-        int8_t value = CHARSET_REV[(uint8_t)tolower(payload[i])];
+        int8_t value = CHARSET_REV[(uint8_t)tolower((unsigned char)payload[i])];
         if (value < 0) {
             LOGDEBUG("Invalid character in payload: %c", payload[i]);
             return false;
         }
         data[data_len++] = value;
     }
-    
+
     /* The last 8 characters are checksum (40 bits) */
     if (data_len < 9) {  /* At least version + 1 byte payload + 8 checksum */
         LOGDEBUG("Payload too short for checksum");
         return false;
+    }
+
+    /* Verify the checksum: PolyMod(expand_prefix(expected_prefix) ++ [0] ++
+     * data) must equal 0 per spec. This file's polymod() omits the spec's
+     * final XOR 1, so with polymod() as implemented here validity is
+     * polymod(...) == 1. */
+    {
+        size_t prefix_len = strlen(expected_prefix);
+        uint8_t checksum_input[1 + 20 + 112]; /* generous upper bound */
+        size_t idx = 0;
+
+        if (prefix_len + 1 + data_len > sizeof(checksum_input)) {
+            LOGDEBUG("Prefix + payload too long for checksum buffer");
+            return false;
+        }
+
+        for (size_t i = 0; i < prefix_len; ++i)
+            checksum_input[idx++] = ((uint8_t)expected_prefix[i]) & 0x1f;
+        checksum_input[idx++] = 0;
+        for (size_t i = 0; i < data_len; ++i)
+            checksum_input[idx++] = data[i];
+
+        if (polymod(checksum_input, idx) != 1) {
+            LOGDEBUG("CashAddr checksum verification failed: %s", addr);
+            return false;
+        }
     }
 
     /* Remove checksum from the end */
@@ -138,31 +202,49 @@ bool cashaddr_decode_simple(const char *addr, uint8_t *hash160, bool *is_p2sh)
         return false;
     }
 
-    /* Extract version byte */
-    uint8_t version = decoded[0];
-
-    /* Version byte format for CashAddr:
-     * Upper 4 bits: type (0 = P2PKH, 1 = P2SH)
-     * Lower 4 bits: size encoding
-     */
-    uint8_t type = (version >> 3) & 0x1f;
-    *is_p2sh = (type == 1);
-
-    /* Verify we have exactly 20 bytes for hash160 */
+    /* Verify we have exactly 20 bytes for hash160 (only hash160-sized
+     * P2PKH/P2SH outputs are supported) */
     if (decoded_len != 21) {
         LOGDEBUG("Invalid decoded length: %zu (expected 21 for hash160)", decoded_len);
         return false;
     }
 
+    /* Extract version byte */
+    uint8_t version = decoded[0];
+
+    /* Version byte format for CashAddr:
+     * Bit 7: reserved, must be zero
+     * Bits 3-6: type (0 = P2PKH, 1 = P2SH)
+     * Bits 0-2: size encoding
+     */
+    if (version & 0x80) {
+        LOGDEBUG("CashAddr version byte reserved bit set: 0x%02x", version);
+        return false;
+    }
+
+    uint8_t type = (version >> 3) & 0x0f;
+    if (type != 0 && type != 1) {
+        LOGDEBUG("Unsupported CashAddr type: %u", type);
+        return false;
+    }
+    *is_p2sh = (type == 1);
+
     /* Copy the hash160 (skip version byte) */
     memcpy(hash160, decoded + 1, 20);
-    
+
     /* Log what we extracted */
     char hash_hex[41];
     __bin2hex(hash_hex, hash160, 20);
     LOGDEBUG("Extracted hash160: %s (P2SH: %s)", hash_hex, *is_p2sh ? "true" : "false");
-    
+
     return true;
+}
+
+/* Extract hash160 from CashAddr - simplified version, defaults to the
+ * mainnet "bitcoincash" prefix. Thin wrapper kept for existing callers. */
+bool cashaddr_decode_simple(const char *addr, uint8_t *hash160, bool *is_p2sh)
+{
+    return cashaddr_decode_checked(addr, "bitcoincash", hash160, is_p2sh);
 }
 
 /* Build P2PKH script from hash160 */

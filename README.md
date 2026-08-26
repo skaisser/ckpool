@@ -2,6 +2,48 @@
 
 **EloPool** is a heavily enhanced fork of CKPool, specifically optimized for Bitcoin Cash (BCH) mining. This production-ready pool software includes native CashAddr support, pool operator fee distribution, multi-difficulty management, and enterprise-grade reliability features.
 
+## 🎯 Mine Directly to Your Own BCH Address
+
+**Solo Mode (-B):** The pool now supports mining directly to your personal BCH address. Each miner is paid on-chain automatically when they find a block, receiving their share minus the pool operator fee.
+
+### How It Works
+
+Simply use your **BCH address as your mining username**:
+
+```bash
+# CashAddr format (with prefix) - recommended
+./cgminer -o stratum+tcp://pool:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy -p x
+
+# CashAddr format (without prefix)
+./cgminer -o stratum+tcp://pool:3333 -u qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy -p x
+
+# Legacy Base58 format
+./cgminer -o stratum+tcp://pool:3333 -u 1A1z7agoat8Bt8ZVUUxkKvWAWgHtdNi3nn -p x
+
+# Multi-worker mode (add `.workername` or `_workername` suffix)
+./cgminer -o stratum+tcp://pool:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy.rig01 -p x
+```
+
+### Payment Distribution
+
+When you find a block:
+- **98%** goes to your on-chain address automatically
+- **2%** (configurable 0–50%) goes to the pool operator as fee
+
+The pool creates a dual-output coinbase transaction splitting the block reward. All outputs sum to the full block reward; if the fee would be dust (<546 sats), the fee output is omitted.
+
+### Smart Fallback & Typo Protection
+
+- **Non-address username** (e.g., `rig01`, `miner1`): You mine for the pool's own address (`bchaddress` config) but keep all rewards
+- **Invalid address** (bad checksum/wrong network): You're **rejected immediately** with the message "Invalid BCH address (bad checksum or wrong network) - check your username for typos" — this protects you from accidentally donating a block to a mistyped address
+
+### Network Support
+
+The pool automatically detects your network (mainnet/testnet/regtest) from the BCH node and validates addresses accordingly. CashAddr prefixes must match the network:
+- `bitcoincash:` addresses → mainnet
+- `bchtest:` addresses → testnet  
+- `bchreg:` addresses → regtest
+
 ## 🚀 What's Different from Original CKPool?
 
 This is not just a simple fork. EloPool has been **extensively modified** for Bitcoin Cash:
@@ -101,6 +143,10 @@ This is not just a simple fork. EloPool has been **extensively modified** for Bi
   - Case-insensitive substring matching
   - Applied during worker authorization
   - Useful for custom miner groups
+  
+  ⚠️ **Important for Solo Mode:** To avoid substring-matching BCH addresses in usernames, keep keys ≥3 characters AND avoid letters b, i, o (hexadecimal-like). Examples:
+    - ✅ Good: `"nicehash"` (8 chars), `"high"` (4 chars), `"test123"` (7 chars)
+    - ❌ Avoid: `"hi"` (2 chars), `"rig"` (contains `i`), `"old"` (contains `o`)
 
 #### 4. **Enterprise-Grade Multi-Node Redundancy** ✅
   - **Instant failover** - Switches to backup on first RPC failure (~100ms)
@@ -150,7 +196,7 @@ cd ckpool
 
 # 3. Configure your pool settings
 nano ~/ckpool/ckpool.conf
-# Edit: btcaddress, pooladdress, poolfee, btcd credentials
+# Edit: bchaddress, pooladdress, poolfee, btcd credentials
 
 # 4. Set up systemd service and firewall (requires sudo)
 sudo ./post-install.sh
@@ -183,19 +229,16 @@ sudo make install
 
 ```json
 {
-    // Mainnet example with CashAddr:
-    "btcaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",  // Miner receives 99%
-    "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w", // Pool receives 1%
+    "bchaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",  // Miner receives 98%
+    "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w", // Pool receives 2%
 
-    // Legacy addresses also work:
-    // "btcaddress": "1AGQcP3KNqTAQkZQA2LBCKqvYn1C4V7cS",
-    // "pooladdress": "1PeURBa2vVBuKgeqRjVNqF7eGumeZCJ3mb",
-
-    "poolfee": 1.0  // 1% pool fee (must include decimal)
+    "poolfee": 2.0  // 2% pool fee (configurable 0-50, must include decimal)
 }
 ```
 
-This creates a dual-output coinbase transaction automatically splitting the block reward.
+**Note:** The config key `btcaddress` is deprecated. Use `bchaddress` (same functionality, BCH-specific naming).
+
+This creates a dual-output coinbase transaction automatically splitting the block reward. See [Pool Fee Details](POOL_FEE.md) for the complete mechanics (rounding, dust handling, verification).
 
 ### Coinbase Message (btcsig)
 
@@ -257,9 +300,9 @@ The `btcsig` parameter controls the **entire** coinbase message that appears in 
         "notify": true,
         "zmqnotify": "tcp://127.0.0.1:28333"
     }],
-    "btcaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",  // Main mining address
+    "bchaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",  // Main mining address (solo mode fallback)
     "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w",  // Pool fee address
-    "poolfee": 1.0,                           // 1% pool fee
+    "poolfee": 2.0,                           // 2% pool fee (configurable 0-50)
     "btcsig": "YourPool.com",                // Your pool branding
     "blockpoll": 50,
     "update_interval": 15,
@@ -300,10 +343,10 @@ The `btcsig` parameter controls the **entire** coinbase message that appears in 
             "zmqnotify": "tcp://10.0.1.11:28333"
         }
     ],
-    "btcaddress": "YOUR_BCH_ADDRESS",  // CashAddr or legacy format
+    "bchaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",
+    "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w",
+    "poolfee": 2.0,
     "btcsig": "EloPool.cloud",
-    "pooladdress": "YOUR_BCH_FEE_ADDRESS", // CashAddr or legacy format
-    "poolfee": 1,
     "mindiff": 500000,
     "startdiff": 500000,
     "maxdiff": 1000000,
@@ -375,26 +418,37 @@ Just add to your config:
 
 **That's it!** The pool will automatically detect and apply correct difficulty.
 
-### For Miners/Renters
+### For Solo Miners
 
-#### NiceHash (Ready for Production Testing)
-1. Add pool: `stratum+tcp://POOL_IP:3333`
-2. Use your BCH address as username
-3. Any password (or use `d=DIFFICULTY` to override)
-4. **Pool auto-detects NiceHash from useragent and applies 500k+ difficulty**
-5. **Note**: Ensure `maxdiff` is 0 or > 500000 in config
+All miners connect the same way using their **own BCH address as the username**. Blocks are mined directly to the miner's address:
 
-#### MiningRigRentals
-1. Pool URL: `stratum+tcp://POOL_IP:3333`
-2. Worker: `YOUR_BCH_ADDRESS.rigname`
-3. Password: `x` (or `d=DIFFICULTY` to set custom)
-4. **Pool auto-detects MRR and applies 1M+ difficulty**
-
-#### Regular Miners (Non-Rental)
 ```bash
-# Use password to set your preferred difficulty
-./cgminer -o stratum+tcp://POOL_IP:3333 -u BCH_ADDRESS.worker -p d=50000
+# Basic setup (uses default difficulty)
+./cgminer -o stratum+tcp://POOL_IP:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy -p x
+
+# Set custom difficulty via password
+./cgminer -o stratum+tcp://POOL_IP:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy -p d=500000
+
+# Multi-worker setup
+./cgminer -o stratum+tcp://POOL_IP:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy.rig01 -p x
 ```
+
+**When you find a block:**
+- 98% auto-pays to your address on-chain
+- 2% (configurable) pays to the pool operator fee address
+- Payment is automatic and non-custodial
+
+### For Rental Services (NiceHash, MiningRigRentals)
+
+If renting hashrate to this pool:
+
+1. Add pool: `stratum+tcp://POOL_IP:3333`
+2. Use your **BCH address** as the username (same as solo miners)
+3. **Auto-detection:** Pool automatically detects NiceHash/MRR from useragent and applies appropriate difficulty
+   - NiceHash: 500k difficulty
+   - MiningRigRentals: 1M difficulty
+4. You can override with password: `-p d=1000000`
+5. **Note:** Ensure pool's `maxdiff` is 0 or > rental service difficulty
 
 ## 🚦 BCH Node Setup
 
@@ -474,6 +528,58 @@ cd ~/ckpool
 
 # View logs
 tail -f ~/ckpool/logs/ckpool.log
+```
+
+## 🚀 Deploying Solo Mode Cutover
+
+To activate solo mode mining where each miner is paid directly on-chain:
+
+### 1. Update Configuration
+
+```bash
+# Edit your ckpool.conf
+nano ~/ckpool/ckpool.conf
+```
+
+Set these keys:
+- `"bchaddress"` - fallback address for non-address usernames (miners should use their own BCH address as username)
+- `"pooladdress"` - your pool operator fee address (receives the configured poolfee %)
+- `"poolfee"` - fee percentage (e.g., 2.0 for 2%; configurable 0–50)
+
+### 2. Enable Solo Mode Flag
+
+Add `-B` flag to your pool start command. For systemd service:
+
+```bash
+# Edit the service file
+sudo nano /etc/systemd/system/ckpool.service
+```
+
+Update the `ExecStart` line to include `-B`:
+```
+ExecStart=/home/user/ckpool/ckpool -c /home/user/ckpool/ckpool.conf -L -B
+```
+
+### 3. Restart the Pool
+
+```bash
+# Reload systemd and restart
+sudo systemctl daemon-reload
+sudo systemctl restart ckpool
+
+# Verify it's running
+sudo systemctl status ckpool
+```
+
+### 4. Miner Migration (Optional)
+
+Existing miners with plain usernames (e.g., `rig01`) continue mining:
+- They automatically mine for your `bchaddress` pool fallback
+- No action needed until they want individual payouts
+
+Miners can opt-in to solo mode by using their **own BCH address as username**:
+```bash
+./cgminer -o stratum+tcp://pool:3333 -u bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy -p x
 ```
 
 ### Monitor Operations

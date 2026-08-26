@@ -1181,11 +1181,14 @@ bool json_get_double(double *store, const json_t *val, const char *res)
 		LOGDEBUG("Json did not find entry %s", res);
 		goto out;
 	}
-	if (!json_is_real(entry)) {
-		LOGWARNING("Json entry %s is not a double", res);
+	/* Accept both real and integer JSON numbers -- "poolfee": 2 is valid
+	 * JSON but json_is_real() alone would reject it, silently leaving
+	 * *store unset. */
+	if (!json_is_number(entry)) {
+		LOGWARNING("Json entry %s is not a number", res);
 		goto out;
 	}
-	*store = json_real_value(entry);
+	*store = json_number_value(entry);
 	LOGDEBUG("Json found entry %s: %f", res, *store);
 	ret = true;
 out:
@@ -1447,9 +1450,28 @@ static void parse_config(ckpool_t *ckp)
 		if (arr_size)
 			parse_btcds(ckp, arr_val, arr_size);
 	}
-	json_get_string(&ckp->btcaddress, json_conf, "btcaddress");
+	/* This is a BCH-only pool, so the preferred operator-facing config
+	 * key is "bchaddress". "btcaddress" is kept as a backward-compatible
+	 * alias -- production configs still use it -- and is only consulted
+	 * when "bchaddress" is absent. The internal struct field name stays
+	 * ckp->btcaddress. */
+	if (!json_get_string(&ckp->btcaddress, json_conf, "bchaddress")) {
+		if (json_get_string(&ckp->btcaddress, json_conf, "btcaddress"))
+			LOGNOTICE("Config key 'btcaddress' is deprecated, please use 'bchaddress' instead");
+	}
 	json_get_string(&ckp->pooladdress, json_conf, "pooladdress");
 	json_get_double(&ckp->poolfee, json_conf, "poolfee");
+	/* Clamp poolfee to a sane range. Negative values make no sense and
+	 * values above 50% are certainly a config typo (2.0 is a realistic
+	 * production value); an unclamped poolfee > 100 causes g64 -= d64 to
+	 * underflow the unsigned coinbase value in generate_coinbase(). */
+	if (ckp->poolfee < 0) {
+		LOGWARNING("Poolfee %.1f invalid, clamping to 0", ckp->poolfee);
+		ckp->poolfee = 0;
+	} else if (ckp->poolfee > 50) {
+		LOGWARNING("Poolfee %.1f out of range, clamping to 50", ckp->poolfee);
+		ckp->poolfee = 50;
+	}
 	json_get_string(&ckp->btcsig, json_conf, "btcsig");
 	if (ckp->btcsig && strlen(ckp->btcsig) > 38) {
 		LOGWARNING("Signature %s too long, truncating to 38 bytes", ckp->btcsig);
@@ -1492,12 +1514,6 @@ static void parse_config(ckpool_t *ckp)
 
 	json_get_string(&ckp->logdir, json_conf, "logdir");
 	json_get_int(&ckp->maxclients, json_conf, "maxclients");
-	json_get_double(&ckp->donation, json_conf, "donation");
-	/* Avoid dust-sized donations */
-	if (ckp->donation < 0.1)
-		ckp->donation = 0;
-	else if (ckp->donation > 99.9)
-		ckp->donation = 99.9;
 	arr_val = json_object_get(json_conf, "proxy");
 	if (arr_val && json_is_array(arr_val)) {
 		arr_size = json_array_size(arr_val);
@@ -1768,15 +1784,10 @@ int main(int argc, char **argv)
 			ckp.btcdpass[i] = strdup("pass");
 	}
 
-	ckp.donaddress = "bc1q28kkr5hk4gnqe3evma6runjrd2pvqyp8fpwfzu";
-
-	/* Donations on testnet are meaningless but required for complete
-	 * testing. Testnet and regtest addresses */
-	ckp.tndonaddress = "tb1q5fyv7tue73y4zxezh2c685qpwx0cfngfxlrgxh";
-	ckp.rtdonaddress = "bcrt1qlk935ze2fsu86zjp395uvtegztrkaezawxx0wf";
-
 	if (!ckp.btcaddress && !ckp.btcsolo && !ckp.proxy)
-		quit(0, "Non solo mining must have a btcaddress in config, aborting!");
+		quit(0, "Non solo mining must have a bchaddress in config, aborting!");
+	if (!ckp.btcaddress && ckp.btcsolo)
+		quit(0, "Solo BCH mining (-B) must have a bchaddress in config, aborting!");
 	if (!ckp.blockpoll)
 		ckp.blockpoll = 100;
 	if (!ckp.nonce1length)

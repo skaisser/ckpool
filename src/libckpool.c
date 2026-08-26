@@ -1606,43 +1606,6 @@ bool _hex2bin(void *vp, const void *vhexstr, size_t len, const char *file, const
 	return ret;
 }
 
-static const int b58tobin_tbl[] = {
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-	-1,  0,  1,  2,  3,  4,  5,  6,  7,  8, -1, -1, -1, -1, -1, -1,
-	-1,  9, 10, 11, 12, 13, 14, 15, 16, -1, 17, 18, 19, 20, 21, -1,
-	22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, -1, -1, -1, -1, -1,
-	-1, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, -1, 44, 45, 46,
-	47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57
-};
-
-/* b58bin should always be at least 25 bytes long and already checked to be
- * valid. */
-void b58tobin(char *b58bin, const char *b58)
-{
-	uint32_t c, bin32[7];
-	int len, i, j;
-	uint64_t t;
-
-	memset(bin32, 0, 7 * sizeof(uint32_t));
-	len = strlen((const char *)b58);
-	for (i = 0; i < len; i++) {
-		c = b58[i];
-		c = b58tobin_tbl[c];
-		for (j = 6; j >= 0; j--) {
-			t = ((uint64_t)bin32[j]) * 58 + c;
-			c = (t & 0x3f00000000ull) >> 32;
-			bin32[j] = t & 0xffffffffull;
-		}
-	}
-	*(b58bin++) = bin32[0] & 0xff;
-	for (i = 1; i < 7; i++) {
-		*((uint32_t *)b58bin) = htobe32(bin32[i]);
-		b58bin += sizeof(uint32_t);
-	}
-}
-
 /* Does a safe string comparison tolerating zero length and NULL strings */
 int safecmp(const char *a, const char *b)
 {
@@ -1731,110 +1694,164 @@ char *http_base64(const char *src)
 	return (str);
 }
 
-static const int8_t charset_rev[128] = {
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-	15, -1, 10, 17, 21, 20, 26, 30,  7,  5, -1, -1, -1, -1, -1, -1,
-	-1, 29, -1, 24, 13, 25,  9,  8, 23, -1, 18, 22, 31, 27, 19, -1,
-	1,  0,  3, 16, 11, 28, 12, 14,  6,  4,  2, -1, -1, -1, -1, -1,
-	-1, 29, -1, 24, 13, 25,  9,  8, 23, -1, 18, 22, 31, 27, 19, -1,
-	1,  0,  3, 16, 11, 28, 12, 14,  6,  4,  2, -1, -1, -1, -1, -1
-};
+/* ---------------------------------------------------------------------
+ * BCH address classification: cashaddr and legacy Base58Check, both
+ * verified and script-constructed entirely locally so that address
+ * validation and payout-script construction can never disagree on what
+ * an address is (see bch_classify_address()).
+ * ------------------------------------------------------------------- */
 
-/* It's assumed that there is no chance of sending invalid chars to these
- * functions as they should have been checked beforehand. */
-static void bech32_decode(uint8_t *data, int *data_len, const char *input)
+static char cashaddr_active_prefix[16] = "bitcoincash";
+
+void bch_set_cashaddr_prefix(const char *prefix)
 {
-	int input_len = strlen(input), hrp_len, i;
-
-	*data_len = 0;
-	while (*data_len < input_len && input[(input_len - 1) - *data_len] != '1')
-		++(*data_len);
-	hrp_len = input_len - (1 + *data_len);
-	*(data_len) -= 6;
-	for (i = hrp_len + 1; i < input_len; i++) {
-		int v = (input[i] & 0x80) ? -1 : charset_rev[(int)input[i]];
-
-		if (i + 6 < input_len)
-			data[i - (1 + hrp_len)] = v;
-	}
+	if (prefix && *prefix)
+		strncpy(cashaddr_active_prefix, prefix, sizeof(cashaddr_active_prefix) - 1);
 }
 
-static void convert_bits(char *out, int *outlen, const uint8_t *in,
-			 int inlen)
+const char *bch_get_cashaddr_prefix(void)
 {
-	const int outbits = 8, inbits = 5;
-	uint32_t val = 0, maxv = (((uint32_t)1) << outbits) - 1;
-	int bits = 0;
+	return cashaddr_active_prefix;
+}
 
-	while (inlen--) {
-		val = (val << inbits) | *(in++);
-		bits += inbits;
-		while (bits >= outbits) {
-			bits -= outbits;
-			out[(*outlen)++] = (val >> bits) & maxv;
+/* A cashaddr-shaped string is either "<known-prefix>:<payload>" or, if
+ * prefixless, exactly 42 characters long -- the fixed length of a 20-byte
+ * hash160 cashaddr payload (34 data + 8 checksum characters). Charset and
+ * case-consistency are left to cashaddr_decode_checked(); legacy Base58Check
+ * addresses (25-35 chars, mixed case, no ':') never match this shape. */
+static bool bch_addr_is_cashaddr_shaped(const char *addr)
+{
+	const char *colon = strchr(addr, ':');
+
+	if (colon) {
+		size_t prefix_len = colon - addr;
+
+		return (prefix_len == 11 && strncasecmp(addr, "bitcoincash", 11) == 0) ||
+		       (prefix_len == 7 && strncasecmp(addr, "bchtest", 7) == 0) ||
+		       (prefix_len == 6 && strncasecmp(addr, "bchreg", 6) == 0);
+	}
+	return strlen(addr) == 42;
+}
+
+static const char b58_alphabet[] =
+	"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+/* Strict Base58 decode into a fixed 25-byte buffer (version + hash160 +
+ * 4-byte checksum), rejecting any character outside the Base58 alphabet
+ * and any value that doesn't fit in 25 bytes. Unlike b58tobin(), which
+ * assumes its input has already been validated, this does its own full
+ * charset and length/overflow checking since it may be handed arbitrary
+ * miner-supplied input. */
+static bool bch_b58decode_strict(const char *s, uint8_t out25[25])
+{
+	size_t len = strlen(s);
+	size_t i;
+
+	if (!len || len > 100)
+		return false;
+
+	memset(out25, 0, 25);
+	for (i = 0; i < len; i++) {
+		const char *p = strchr(b58_alphabet, s[i]);
+		int carry, j;
+
+		if (!p || s[i] == '\0')
+			return false;
+		carry = (int)(p - b58_alphabet);
+		for (j = 24; j >= 0; j--) {
+			carry += 58 * out25[j];
+			out25[j] = carry & 0xff;
+			carry >>= 8;
 		}
+		if (carry)
+			return false; /* overflow: doesn't fit in 25 bytes */
+	}
+	return true;
+}
+
+/* Classify addr as a legacy Base58Check address: decode strictly, verify
+ * the double-SHA256 checksum locally, then map the version byte to
+ * P2PKH/P2SH for whichever network cashaddr_prefix selects. Mainnet uses
+ * 0x00/0x05; testnet and regtest share 0x6f/0xc4. */
+static bch_addr_type_t bch_classify_legacy(const char *addr, const char *cashaddr_prefix,
+					    uint8_t hash160[20])
+{
+	uint8_t decoded[25], chk1[32], chk2[32];
+	uint8_t version;
+	bool mainnet;
+
+	if (!bch_b58decode_strict(addr, decoded))
+		return BCH_ADDR_INVALID;
+
+	sha256(decoded, 21, chk1);
+	sha256(chk1, 32, chk2);
+	if (memcmp(chk2, decoded + 21, 4) != 0)
+		return BCH_ADDR_INVALID;
+
+	version = decoded[0];
+	mainnet = !strcasecmp(cashaddr_prefix, "bitcoincash");
+
+	if ((mainnet && version == 0x00) || (!mainnet && version == 0x6f)) {
+		memcpy(hash160, decoded + 1, 20);
+		return BCH_ADDR_LEGACY_P2PKH;
+	}
+	if ((mainnet && version == 0x05) || (!mainnet && version == 0xc4)) {
+		memcpy(hash160, decoded + 1, 20);
+		return BCH_ADDR_LEGACY_P2SH;
+	}
+	return BCH_ADDR_INVALID;
+}
+
+bch_addr_type_t bch_classify_address(const char *addr, const char *cashaddr_prefix,
+				      uint8_t hash160[20])
+{
+	if (unlikely(!addr || !cashaddr_prefix || !hash160))
+		return BCH_ADDR_INVALID;
+
+	if (bch_addr_is_cashaddr_shaped(addr)) {
+		bool is_p2sh = false;
+
+		if (cashaddr_decode_checked(addr, cashaddr_prefix, hash160, &is_p2sh))
+			return is_p2sh ? BCH_ADDR_CASHADDR_P2SH : BCH_ADDR_CASHADDR_P2PKH;
+		return BCH_ADDR_INVALID;
+	}
+
+	return bch_classify_legacy(addr, cashaddr_prefix, hash160);
+}
+
+int bch_address_to_script(char *out, const char *addr, const char *cashaddr_prefix)
+{
+	uint8_t hash160[20];
+	bch_addr_type_t type = bch_classify_address(addr, cashaddr_prefix, hash160);
+
+	switch (type) {
+	case BCH_ADDR_CASHADDR_P2PKH:
+	case BCH_ADDR_LEGACY_P2PKH:
+		return hash160_to_p2pkh_script((uint8_t *)out, hash160);
+	case BCH_ADDR_CASHADDR_P2SH:
+	case BCH_ADDR_LEGACY_P2SH:
+		return hash160_to_p2sh_script((uint8_t *)out, hash160);
+	case BCH_ADDR_INVALID:
+	default:
+		return 0;
 	}
 }
 
-static int address_to_pubkeytxn(char *pkh, const char *addr)
-{
-	char b58bin[25] = {};
-
-	b58tobin(b58bin, addr);
-	pkh[0] = 0x76;
-	pkh[1] = 0xa9;
-	pkh[2] = 0x14;
-	memcpy(&pkh[3], &b58bin[1], 20);
-	pkh[23] = 0x88;
-	pkh[24] = 0xac;
-	return 25;
-}
-
-static int address_to_scripttxn(char *psh, const char *addr)
-{
-	char b58bin[25] = {};
-
-	b58tobin(b58bin, addr);
-	psh[0] = 0xa9;
-	psh[1] = 0x14;
-	memcpy(&psh[2], &b58bin[1], 20);
-	psh[22] = 0x87;
-	return 23;
-}
-
-static int segaddress_to_txn(char *p2h, const char *addr)
-{
-	int data_len, witdata_len = 0;
-	char *witdata = &p2h[2];
-	uint8_t data[84];
-
-	bech32_decode(data, &data_len, addr);
-	p2h[0] = data[0];
-	/* Witness version is > 0 */
-	if (p2h[0])
-		p2h[0] += 0x50;
-	convert_bits(witdata, &witdata_len, data + 1, data_len - 1);
-	p2h[1] = witdata_len;
-	return witdata_len + 2;
-}
-
-/* Convert an address to a transaction and return the length of the transaction */
+/* Convert an address to its output script and return the length, or 0 on
+ * any classification failure. script/segwit are retained for existing
+ * callers' signature compatibility only: BCH has no segwit, and script
+ * type is now derived from the address itself rather than trusted from
+ * the caller. The signature is kept as-is because validate_address()/
+ * generator_checkaddr() thread the same two params and their prototypes
+ * live in bitcoin.h/generator.h, outside this cleanup's file scope; the
+ * always-false storage that used to feed them was deleted at the call
+ * sites instead. */
 int address_to_txn(char *p2h, const char *addr, const bool script, const bool segwit)
 {
-	/* Check if it's a CashAddr format */
-	if (strncasecmp(addr, "bitcoincash:", 12) == 0 ||
-	    strncasecmp(addr, "bchtest:", 8) == 0 ||
-	    strncasecmp(addr, "bchreg:", 7) == 0) {
-		return cashaddr_to_script(addr, (uint8_t *)p2h);
-	}
+	(void)script;
+	(void)segwit;
 
-	if (segwit)
-		return segaddress_to_txn(p2h, addr);
-	if (script)
-		return address_to_scripttxn(p2h, addr);
-	return address_to_pubkeytxn(p2h, addr);
+	return bch_address_to_script(p2h, addr, bch_get_cashaddr_prefix());
 }
 
 /*  For encoding nHeight into coinbase, return how many bytes were used */

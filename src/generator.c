@@ -209,6 +209,51 @@ struct generator_data {
 
 typedef struct generator_data gdata_t;
 
+/* Query bitcoind for its chain via getblockchaininfo and derive the
+ * matching CashAddr network prefix, storing it in ckp->cashaddr_prefix and
+ * propagating it to the address classifier (bch_set_cashaddr_prefix())
+ * used by validate_address()/address_to_txn(). Runs once, at the first
+ * successful connect; defaults to "bitcoincash" with a warning if the RPC
+ * fails or returns an unrecognised chain. */
+static void detect_cashaddr_prefix(ckpool_t *ckp, connsock_t *cs)
+{
+	static const char *chaininfo_req = "{\"method\": \"getblockchaininfo\"}\n";
+	const char *prefix = "bitcoincash";
+	const char *chain = NULL;
+	json_t *val, *res_val, *chain_val;
+
+	val = json_rpc_call(cs, chaininfo_req);
+	if (!val) {
+		LOGWARNING("Failed to get getblockchaininfo response, defaulting cashaddr prefix to %s", prefix);
+		goto out;
+	}
+	res_val = json_object_get(val, "result");
+	chain_val = res_val ? json_object_get(res_val, "chain") : NULL;
+	chain = chain_val ? json_string_value(chain_val) : NULL;
+	if (!chain) {
+		LOGWARNING("Failed to parse chain from getblockchaininfo, defaulting cashaddr prefix to %s", prefix);
+		goto out_decref;
+	}
+
+	if (!strcmp(chain, "main"))
+		prefix = "bitcoincash";
+	else if (!strcmp(chain, "test") || !strcmp(chain, "testnet4") ||
+		 !strcmp(chain, "scalenet") || !strcmp(chain, "chipnet"))
+		prefix = "bchtest";
+	else if (!strcmp(chain, "regtest"))
+		prefix = "bchreg";
+	else
+		LOGWARNING("Unknown chain '%s' from getblockchaininfo, defaulting cashaddr prefix to %s",
+			   chain, prefix);
+out_decref:
+	json_decref(val);
+out:
+	dealloc(ckp->cashaddr_prefix);
+	ckp->cashaddr_prefix = strdup(prefix);
+	bch_set_cashaddr_prefix(ckp->cashaddr_prefix);
+	LOGNOTICE("Using CashAddr network prefix: %s", ckp->cashaddr_prefix);
+}
+
 /* Use a temporary fd when testing server_alive to avoid races on cs->fd */
 static bool server_alive(ckpool_t *ckp, server_instance_t *si, bool pinging)
 {
@@ -217,6 +262,9 @@ static bool server_alive(ckpool_t *ckp, server_instance_t *si, bool pinging)
 	connsock_t *cs;
 	gbtbase_t gbt;
 	int fd;
+	/* segwit is always false on BCH; ckp no longer stores it (Phase 7),
+	 * so a throwaway local receives validate_address()'s output param. */
+	bool segwit_unused;
 
 	if (si->alive)
 		return true;
@@ -253,20 +301,13 @@ static bool server_alive(ckpool_t *ckp, server_instance_t *si, bool pinging)
 		goto out;
 	}
 	clear_gbtbase(&gbt);
-	if (unlikely(ckp->btcsolo && !ckp->btcaddress)) {
-		/* If no btcaddress is specified in solobtc mode, choose one of
-		 * the donation addresses from mainnet, testnet, or regtest for
-		 * coinbase validation later on, although it will not be used
-		 * for mining. */
-		if (validate_address(cs, ckp->donaddress, &ckp->script, &ckp->segwit))
-			ckp->btcaddress = ckp->donaddress;
-		else if (validate_address(cs, ckp->tndonaddress, &ckp->script, &ckp->segwit))
-			ckp->btcaddress = ckp->tndonaddress;
-		else if (validate_address(cs, ckp->rtdonaddress, &ckp->script, &ckp->segwit))
-			ckp->btcaddress = ckp->rtdonaddress;
-	}
+	if (unlikely(!ckp->cashaddr_prefix))
+		detect_cashaddr_prefix(ckp, cs);
+	/* btcsolo mode without a btcaddress is now a fatal startup error
+	 * (enforced in ckpool.c), so there is no BTC-donation-address
+	 * fallback to adopt here on a BCH-only pool. */
 
-	if (!ckp->node && !validate_address(cs, ckp->btcaddress, &ckp->script, &ckp->segwit)) {
+	if (!ckp->node && !validate_address(cs, ckp->btcaddress, &ckp->script, &segwit_unused)) {
 		LOGWARNING("Invalid btcaddress: %s !", ckp->btcaddress);
 		goto out;
 	}
@@ -957,16 +998,8 @@ bool generator_checkaddr(ckpool_t *ckp, const char *addr, bool *script, bool *se
 	cs = &si->cs;
 	ret = validate_address(cs, addr, script, segwit);
 
-	if (unlikely(!ret)) {
-		LOGWARNING("Failed to validate address at %s:%s", cs->url, cs->port);
-		si->alive = cs->alive = false;
-
-		/* Immediately failover to a live server */
-		si = live_server(ckp, gdata);
-		if (si) {
-			reconnect_generator(ckp);
-		}
-	}
+	if (unlikely(!ret))
+		LOGWARNING("Address validation failed for %s via %s:%s", addr, cs->url, cs->port);
 out:
 	return ret;
 }
