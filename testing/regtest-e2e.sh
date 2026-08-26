@@ -489,7 +489,13 @@ scenario_5_typo_rejected() {
 
 	local has_explicit_error has_notify
 	has_explicit_error=$(printf '%s' "$response" | grep -qi "Invalid BCH address" && echo true || echo false)
-	has_notify=$(printf '%s' "$response" | grep -q "mining.notify" && echo true || echo false)
+	# Match the notify *method call*, not the bare string: a stratum
+	# subscribe response always contains the subscription topic name
+	# "mining.notify" -- e.g.
+	#   {"result":[[["mining.notify","6a8f2eda"]],"da2e8f6a",8],"id":1}
+	# so grepping for the bare string matches the handshake itself and can
+	# never be false, regardless of whether any work was served.
+	has_notify=$(printf '%s' "$response" | grep -q '"method"[[:space:]]*:[[:space:]]*"mining.notify"' && echo true || echo false)
 
 	check "scenario5: auth response carries the explicit typo error over the wire" "$has_explicit_error"
 	check "scenario5: no mining.notify (work) was served to the rejected client" "$([[ "$has_notify" == "false" ]] && echo true || echo false)"
@@ -518,7 +524,13 @@ scenario_5b_legacy_typo_rejected() {
 
 	local has_explicit_error has_notify
 	has_explicit_error=$(printf '%s' "$response" | grep -qi "Invalid BCH address" && echo true || echo false)
-	has_notify=$(printf '%s' "$response" | grep -q "mining.notify" && echo true || echo false)
+	# Match the notify *method call*, not the bare string: a stratum
+	# subscribe response always contains the subscription topic name
+	# "mining.notify" -- e.g.
+	#   {"result":[[["mining.notify","6a8f2eda"]],"da2e8f6a",8],"id":1}
+	# so grepping for the bare string matches the handshake itself and can
+	# never be false, regardless of whether any work was served.
+	has_notify=$(printf '%s' "$response" | grep -q '"method"[[:space:]]*:[[:space:]]*"mining.notify"' && echo true || echo false)
 
 	check "scenario5b: auth response carries the explicit typo error over the wire" "$has_explicit_error"
 	check "scenario5b: no mining.notify (work) was served to the rejected client" \
