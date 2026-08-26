@@ -59,6 +59,43 @@ This fork transforms CKPool into a production-ready Bitcoin Cash solo mining poo
 
 ## Recent Updates (Latest First)
 
+### v1.2.0 (2026-08-26) - Per-Address Solo Mining
+**Per-Address Solo Payouts**
+- ✨ **Mine to your own BCH address** - use it as your stratum username in solo mode (`-B`)
+- ✨ Accepts prefixed CashAddr, bare CashAddr, UPPERCASE CashAddr and legacy Base58, all
+  resolving to the same user account
+- ✨ Dual-output coinbase splits the block reward between the finder and the pool operator
+- ✨ Multi-worker support - `<address>.rig01` / `<address>_rig01` aggregate under one payout
+- ✨ New `bchaddress` config key names the pool's own payout address
+- 🔧 Operator fee configurable 0-50% via `poolfee`, defaulting to 2%
+
+**Payout Safety**
+- 🔒 Clamped fee percentage, bounded coinbase size, dust fee outputs (<546 sats) omitted
+- 🔒 Unified local BCH address classifier shared by the validate and script-building paths
+- 🔒 Strict CashAddr verification - checksum, prefix and case all enforced
+- ✨ Smart fallback - a genuinely non-address username mines to the pool's `bchaddress`
+- ✨ Typo protection - an address-shaped username that fails validation is rejected with an
+  explicit error rather than silently mining to the pool
+- 🐛 Typo'd testnet/regtest legacy addresses now caught by the same guard; the non-mainnet
+  leading characters are gated on the detected network so mainnet worker names starting
+  with `m`, `n` or `2` still authorise as fallback users
+
+**Reliability**
+- 🐛 Invalid address no longer marks bitcoind dead in checkaddr
+- 🐛 Rental-detected clients skip mindiff_overrides pattern matching
+- 🐛 Ported upstream diff-window, burst vardiff and stats crash fixes
+
+**BCH-Only Cleanup**
+- 🔥 Stripped BTC donation path and remaining segwit leftovers
+
+**Testing**
+- 🧪 Added `testing/regtest-e2e.sh` end-to-end money gate (8 scenarios, real coinbase asserts)
+- 🧪 Added `test/addrclassify` unit test for address classification across all networks
+
+**Documentation**
+- 📚 README rewritten with active-development warning, fork guidance, testing guide and changelog
+- 📚 Documented per-address solo mining, the `bchaddress` key and the 2% fee split
+
 ### v1.1.0 (2025-10-08) - Production Deployment Suite
 **Enterprise-Grade Multi-Node Failover**
 - ⚡ **Instant failover** - Single failure triggers failover (~100ms vs 4+ seconds)

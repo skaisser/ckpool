@@ -15,9 +15,8 @@
 #   - testing/minerd is a pre-compiled 64-bit Linux ELF binary.
 #   - There is no BCH node or Docker available on the authoring machine.
 # This script is therefore written, reviewed and lint-checked (`bash -n`)
-# on macOS but only ever *executed* on the Ubuntu pool server. See
-# .planning/P-0001-bch-address-mining/03-regtest-results.md for the exact
-# build+run commands and for where the results get pasted.
+# on macOS but only ever *executed* on the Ubuntu pool server. Build it
+# there with `./autogen.sh && ./configure && make` before running.
 #
 # Design notes / known deviations worth flagging when reading logs:
 #   - The plan text says "grep ckpool log for the explicit error" for the
