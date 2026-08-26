@@ -50,6 +50,14 @@ MINERD_BIN="$SCRIPT_DIR/minerd"
 
 RPC_PORT=18543
 P2P_PORT=18544
+# NOTE: ckpool treats EVERY stratum port above 4000 as a "highdiff" port
+# (src/connector.c: "All high port servers are treated as highdiff ports"),
+# which overrides startdiff/mindiff and hands each client ckp->highdiff --
+# 1000000 by default. At CPU-miner hash rates that is roughly a share every
+# few months, so every mining scenario times out with no shares at all while
+# the pool looks perfectly healthy. The conf below pins highdiff: 1 to keep
+# this port usable for regtest; do not remove it without also moving
+# STRATUM_PORT below 4000.
 STRATUM_PORT=13333
 WALLET_NAME="e2e"
 RPC_USER="e2euser"
@@ -288,6 +296,7 @@ write_ckpool_conf() {
 			mindiff: 1,
 			startdiff: 1,
 			maxdiff: 0,
+			highdiff: 1,
 			logdir: $logdir
 		}' >"$CONF"
 
@@ -329,9 +338,13 @@ run_miner() {
 	local logfile="$WORKDIR/minerd-${safe_name}.log"
 	local args=(-a sha256d -o "stratum+tcp://127.0.0.1:$STRATUM_PORT" -u "$user" -p x)
 
-	if minerd_help | grep -q -- '--coinbase-addr'; then
-		args+=(--coinbase-addr="$POOL_ADDR")
-	fi
+	# NOTE: deliberately no --coinbase-addr. That option belongs to solo
+	# getblocktemplate mining, where the miner builds its own coinbase. Under
+	# stratum the POOL builds the coinbase, and the payout address under test
+	# is the stratum *username* -- so the option is meaningless here, and
+	# actively harmful: this cpuminer validates the value as legacy Base58 and
+	# exits instantly on a cashaddr with "invalid address", which made every
+	# mining scenario fail with no miner having ever started.
 	args+=("$@")
 
 	"$MINERD_BIN" "${args[@]}" >"$logfile" 2>&1 &
