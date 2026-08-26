@@ -59,8 +59,14 @@ jobs:
           ./configure
           make -j"$(nproc)"
 
-      - name: Unit tests (make check)
-        run: make check
+      # Scoped to test/ on purpose. A bare `make check` recurses through
+      # SUBDIRS into the vendored src/jansson-2.14, whose own test suite is
+      # `TESTS = scripts/clang-format-check` -- a style check on third-party
+      # code that depends on the local clang-format version and says nothing
+      # about ckpool's correctness. It fails on the runner and aborts the
+      # recursion before ckpool's own tests ever execute.
+      - name: Unit tests (sha256, cashaddr, addrclassify)
+        run: make -C test check
 
       - name: Show unit test log on failure
         if: failure()
