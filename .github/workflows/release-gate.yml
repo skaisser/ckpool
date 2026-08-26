@@ -1,0 +1,141 @@
+# Release gate -- build, unit tests, and the full regtest money gate.
+#
+# Deliberately does NOT run on pushes to master/homolog. It fires only when a
+# release tag is pushed, or manually via the Actions tab, so ordinary merges
+# stay fast and the expensive end-to-end run happens exactly when it matters:
+# before a release is published.
+#
+# No external BCH node is required. regtest is a self-contained private chain
+# that generates its own blocks, so this job downloads a BCHN binary and runs
+# the whole money path -- coinbase splits, fee outputs, address classification,
+# typo rejection -- against a throwaway node inside the runner.
+
+name: Release gate
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      bchn_version:
+        description: 'Bitcoin Cash Node version to test against'
+        required: false
+        default: '29.1.0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BCHN_VERSION: ${{ github.event.inputs.bchn_version || '29.1.0' }}
+
+jobs:
+  gate:
+    name: Build, unit tests, regtest money gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v4
+
+      - name: Install build and runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential autoconf automake libtool pkg-config \
+            libssl-dev libjansson-dev libzmq3-dev \
+            jq curl ca-certificates
+          # testing/minerd is a prebuilt Linux ELF; these are its shared deps.
+          sudo apt-get install -y --no-install-recommends libcurl4 libjansson4
+
+      - name: Build
+        run: |
+          ./autogen.sh
+          ./configure
+          make -j"$(nproc)"
+
+      - name: Unit tests (make check)
+        run: make check
+
+      - name: Show unit test log on failure
+        if: failure()
+        run: |
+          for f in test/test-suite.log test/*.log; do
+            [ -f "$f" ] && { echo "===== $f ====="; cat "$f"; }
+          done || true
+
+      - name: Cache Bitcoin Cash Node
+        id: cache-bchn
+        uses: actions/cache@v4
+        with:
+          path: ~/bchn
+          key: bchn-${{ env.BCHN_VERSION }}-x86_64-linux-gnu
+
+      - name: Download Bitcoin Cash Node
+        if: steps.cache-bchn.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/bchn
+          url="https://github.com/bitcoin-cash-node/bitcoin-cash-node/releases/download/v${BCHN_VERSION}/bitcoin-cash-node-${BCHN_VERSION}-x86_64-linux-gnu.tar.gz"
+          echo "Fetching $url"
+          curl -fsSL --retry 3 --retry-delay 5 "$url" -o /tmp/bchn.tar.gz
+          tar -xzf /tmp/bchn.tar.gz -C ~/bchn --strip-components=1
+          rm -f /tmp/bchn.tar.gz
+
+      - name: Put bitcoind/bitcoin-cli on PATH and verify
+        run: |
+          set -euo pipefail
+          echo "$HOME/bchn/bin" >> "$GITHUB_PATH"
+          "$HOME/bchn/bin/bitcoind" --version | head -1
+          "$HOME/bchn/bin/bitcoin-cli" --version | head -1
+
+      - name: Verify the bundled CPU miner can run here
+        run: |
+          set -euo pipefail
+          chmod +x testing/minerd
+          ldd testing/minerd || true
+          # cpuminer exits non-zero on --help on some builds; we only care that
+          # the loader can resolve it rather than dying with "not found".
+          if ldd testing/minerd 2>&1 | grep -q "not found"; then
+            echo "::error::testing/minerd has unresolved shared libraries"
+            exit 1
+          fi
+
+      - name: Regtest end-to-end money gate
+        run: |
+          set -euo pipefail
+          ./testing/regtest-e2e.sh
+          # exit 0 = all assertions passed
+          # exit 1 = an assertion FAILed
+          # exit 2 = missing prerequisites (treated as a gate failure in CI)
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          mkdir -p /tmp/gate-logs
+          # On failure the e2e script deliberately preserves its workdir at
+          # ${TMPDIR:-/tmp}/ckpool-e2e.XXXXXX (it only rm -rf's on success).
+          i=0
+          for d in "${TMPDIR:-/tmp}"/ckpool-e2e.*; do
+            [ -d "$d" ] || continue
+            i=$((i+1))
+            mkdir -p "/tmp/gate-logs/e2e-$i"
+            cp -r "$d"/logs "/tmp/gate-logs/e2e-$i/" 2>/dev/null || true
+            cp -r "$d"/*.conf "/tmp/gate-logs/e2e-$i/" 2>/dev/null || true
+          done
+          cp test/*.log /tmp/gate-logs/ 2>/dev/null || true
+          ls -R /tmp/gate-logs || true
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-gate-logs-${{ github.sha }}
+          path: /tmp/gate-logs
+          if-no-files-found: ignore
+          retention-days: 14
