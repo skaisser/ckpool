@@ -111,6 +111,17 @@ jobs:
             echo "::error::testing/minerd has unresolved shared libraries"
             exit 1
           fi
+          # ldd resolving is necessary but not sufficient -- actually execute it.
+          # A miner that dies on startup otherwise surfaces much later and much
+          # more confusingly, as every mining scenario timing out.
+          if ! testing/minerd --help >/tmp/minerd-help.txt 2>&1; then
+            echo "note: minerd --help exited non-zero; output follows"
+          fi
+          head -20 /tmp/minerd-help.txt || true
+          if ! grep -qiE "usage|option|algo" /tmp/minerd-help.txt; then
+            echo "::error::testing/minerd did not produce usable output -- it cannot run on this host"
+            exit 1
+          fi
 
       - name: Regtest end-to-end money gate
         run: |
@@ -132,7 +143,15 @@ jobs:
             i=$((i+1))
             mkdir -p "/tmp/gate-logs/e2e-$i"
             cp -r "$d"/logs "/tmp/gate-logs/e2e-$i/" 2>/dev/null || true
-            cp -r "$d"/*.conf "/tmp/gate-logs/e2e-$i/" 2>/dev/null || true
+            cp "$d"/*.conf "/tmp/gate-logs/e2e-$i/" 2>/dev/null || true
+            # minerd writes per-scenario logs at $WORKDIR/minerd-<user>.log and
+            # bitcoind's own stdout lands at $WORKDIR/bitcoind.stdout.log. Both
+            # are essential when a scenario fails with "block was found within
+            # timeout" -- without them there is no way to tell whether the
+            # miner never connected, died at startup, or simply found nothing.
+            cp "$d"/minerd-*.log "/tmp/gate-logs/e2e-$i/" 2>/dev/null || true
+            cp "$d"/bitcoind.stdout.log "/tmp/gate-logs/e2e-$i/" 2>/dev/null || true
+            cp "$d"/bitcoind/regtest/debug.log "/tmp/gate-logs/e2e-$i/bitcoind-debug.log" 2>/dev/null || true
           done
           cp test/*.log /tmp/gate-logs/ 2>/dev/null || true
           ls -R /tmp/gate-logs || true
