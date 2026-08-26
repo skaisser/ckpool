@@ -51,6 +51,7 @@ MINERD_BIN="$SCRIPT_DIR/minerd"
 RPC_PORT=18543
 P2P_PORT=18544
 STRATUM_PORT=13333
+WALLET_NAME="e2e"
 RPC_USER="e2euser"
 RPC_PASS="e2epass"
 
@@ -84,6 +85,18 @@ check() {
 
 bch_cli() {
 	bitcoin-cli -regtest -rpcport="$RPC_PORT" -rpcuser="$RPC_USER" -rpcpassword="$RPC_PASS" "$@"
+}
+
+# Wallet-scoped RPCs must name the wallet explicitly. Since BCHN gained
+# multiwallet support, a bare wallet RPC fails with error -19 ("Wallet file
+# not specified (must request wallet RPC through /wallet/<filename>
+# uri-path)") whenever the node does not have exactly one unambiguous wallet
+# loaded -- which is the case on BCHN 29.x with a freshly created wallet.
+# Routing through -rpcwallet is correct on every version and does not depend
+# on how many wallets happen to be loaded.
+bch_wallet() {
+	bitcoin-cli -regtest -rpcport="$RPC_PORT" -rpcuser="$RPC_USER" -rpcpassword="$RPC_PASS" \
+		-rpcwallet="$WALLET_NAME" "$@"
 }
 
 cleanup() {
@@ -179,29 +192,29 @@ start_bitcoind() {
 
 mature_chain_and_addresses() {
 	log "creating wallet and maturing 101 blocks..."
-	bch_cli createwallet e2e >/dev/null
+	bch_cli createwallet "$WALLET_NAME" >/dev/null
 
-	MATURE_ADDR=$(bch_cli getnewaddress "mature")
+	MATURE_ADDR=$(bch_wallet getnewaddress "mature")
 	bch_cli generatetoaddress 101 "$MATURE_ADDR" >/dev/null
 
 	# Pool's own addresses (config: bchaddress / pooladdress). Both are
 	# regular regtest cashaddr (bchreg: prefix) from the node's wallet.
-	POOL_ADDR=$(bch_cli getnewaddress "pool-bchaddress")
-	FEE_ADDR=$(bch_cli getnewaddress "pool-fee")
+	POOL_ADDR=$(bch_wallet getnewaddress "pool-bchaddress")
+	FEE_ADDR=$(bch_wallet getnewaddress "pool-fee")
 
 	# Scenario 1: prefixed cashaddr username.
-	ADDR1=$(bch_cli getnewaddress "scenario1")
+	ADDR1=$(bch_wallet getnewaddress "scenario1")
 	# Scenario 2 / 6: bare cashaddr (strip the "bchreg:" prefix off the
 	# payload) -- scenario 6 reuses this same address, uppercased, to
 	# prove it resolves to the identical user account.
-	ADDR2=$(bch_cli getnewaddress "scenario2")
+	ADDR2=$(bch_wallet getnewaddress "scenario2")
 	ADDR2_BARE="${ADDR2#*:}"
 	ADDR6_UPPER=$(printf '%s' "$ADDR2_BARE" | tr '[:lower:]' '[:upper:]')
 
 	# Scenario 3: legacy Base58Check regtest address, if this bitcoind
 	# build supports requesting the "legacy" address type explicitly.
 	ADDR3=""
-	if bch_cli getnewaddress "scenario3" legacy >/tmp/e2e_addr3.$$ 2>/tmp/e2e_addr3.err.$$; then
+	if bch_wallet getnewaddress "scenario3" legacy >/tmp/e2e_addr3.$$ 2>/tmp/e2e_addr3.err.$$; then
 		ADDR3=$(cat /tmp/e2e_addr3.$$)
 	else
 		warn "getnewaddress ... legacy not supported by this bitcoind build -- scenario 3 will be SKIPPED"
