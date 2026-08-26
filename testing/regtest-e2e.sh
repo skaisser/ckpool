@@ -167,6 +167,11 @@ prereq_check() {
 # bitcoind / ckpool lifecycle
 # ---------------------------------------------------------------------------
 start_bitcoind() {
+	# -allowunconnectedmining is required: BCHN's getblocktemplate refuses to
+	# build a template while the node has zero P2P peers (RPC error -9,
+	# "Bitcoin is not connected!"). An isolated regtest node in CI never has a
+	# peer, so without this flag ckpool can never obtain any work and every
+	# mining scenario fails for a reason unrelated to the pool.
 	log "starting bitcoind -regtest in $WORKDIR/bitcoind ..."
 	mkdir -p "$WORKDIR/bitcoind"
 	bitcoind -regtest -datadir="$WORKDIR/bitcoind" \
@@ -174,6 +179,7 @@ start_bitcoind() {
 		-rpcport="$RPC_PORT" -port="$P2P_PORT" \
 		-rpcallowip=127.0.0.1 -rpcbind=127.0.0.1 \
 		-listen=1 -daemon=0 -fallbackfee=0.0002 \
+		-allowunconnectedmining=1 \
 		-printtoconsole=0 -debug=0 -shrinkdebugfile=1 \
 		>"$WORKDIR/bitcoind.stdout.log" 2>&1 &
 	BITCOIND_PID=$!
