@@ -704,6 +704,23 @@ split.
 > does not build on macOS/BSD, and the bundled `testing/minerd` is a Linux ELF binary.
 > Run it on the pool server, not on your laptop.
 
+### Continuous Integration
+
+`.github/workflows/release-gate.yml` runs the whole gate — build, `make check`, and the
+full regtest money gate — on GitHub Actions.
+
+It fires **only on release tags** (`v*`) and on manual dispatch, never on pushes to
+`master` or `homolog`, so ordinary merges stay fast and the expensive end-to-end run
+happens exactly when it matters: before a release is published.
+
+**No external BCH node is needed.** regtest is a self-contained private chain that
+generates its own blocks, so the workflow downloads a pinned Bitcoin Cash Node binary
+and runs the real money path against a throwaway node inside the runner. On failure it
+preserves the ckpool log and configs as a downloadable artifact.
+
+To run it by hand against a different node version, use **Actions → Release gate → Run
+workflow** and set the `bchn_version` input.
+
 ## 🔧 Troubleshooting
 
 ### ZMQ Connection Issues
