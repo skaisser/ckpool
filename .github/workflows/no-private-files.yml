@@ -1,0 +1,63 @@
+# Keep private working files out of the public repository.
+#
+# This repo is a PUBLIC mirror of the private working repo
+# (skaisser/blocksniper-ckpool), which deliberately tracks .planning/ dossiers
+# and CLAUDE.md. Those must never appear here.
+#
+# .gitignore cannot do this job on its own: it only governs UNTRACKED files.
+# A file already tracked in the private fork arrives through a sync merge
+# regardless of any ignore rule, which is exactly how .planning/ and CLAUDE.md
+# reached master's history. This gate is the enforcement point -- it inspects
+# what is actually tracked at the tip and fails the merge if any of it is
+# private.
+
+name: No private files
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - homolog
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Reject private working files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out the merge result
+        uses: actions/checkout@v4
+
+      - name: Fail if private paths are tracked
+        run: |
+          set -euo pipefail
+
+          # Anchored at the repo root or any directory level, so both
+          # "CLAUDE.md" and "src/CLAUDE.md" are caught.
+          pattern='(^|/)(\.planning/|\.claude/|CLAUDE\.md|AGENTS\.md|GEMINI\.md)'
+
+          # git ls-files lists what is TRACKED, which is the thing that matters.
+          # Untracked files are already handled by .gitignore and never reach CI.
+          if hits=$(git ls-files | grep -E "$pattern"); then
+            echo "::error::Private working files are tracked in this branch."
+            echo
+            echo "The following paths belong to the private repo"
+            echo "(skaisser/blocksniper-ckpool) and must not be published here:"
+            echo
+            printf '%s\n' "$hits" | sed 's/^/  /'
+            echo
+            echo "This repository is PUBLIC. Remove them before merging:"
+            echo
+            printf '%s\n' "$hits" | sed 's|^|  git rm -r --cached |'
+            echo "  git commit -m '🧹 chore: untrack private working files'"
+            echo
+            echo "They stay on disk and remain tracked in the private repo."
+            exit 1
+          fi
+
+          echo "No private working files tracked. ✅"

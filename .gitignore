@@ -43,8 +43,19 @@ libtool
 # macOS
 .DS_Store
 
-# Local planning dossiers (kept on disk, not published)
+# Local planning dossiers and AI agent context -- kept on disk, never published.
+#
+# This is the PUBLIC repository. The private working repo
+# (skaisser/blocksniper-ckpool) tracks these files deliberately; do NOT copy
+# this block there.
+#
+# .gitignore only governs UNTRACKED files. It cannot stop a file that is
+# already tracked in the private fork from arriving here through a sync merge
+# -- which is how .planning/ and CLAUDE.md reached master's history before.
+# The "no-private-files" workflow is what actually enforces this.
 .planning/
+CLAUDE.md
+.claude/
 
 # Go log API build output -- binaries are built on the build host and copied
 # to the pool server, never committed (see api/README.md). There is no CI
