@@ -18,6 +18,10 @@ NiceHash / MiningRigRentals compatibility.
 
 **Running in production at [blocksniper.ai](https://blocksniper.ai)** · `stratum+tcp://solo.blocksniper.ai:3333`
 
+> ### 🔄 Formerly **EloPool.cloud** — now **BlockSniper.ai**
+> Same fork, same maintainer, same repository, same stratum endpoint. Only the name changed.
+> Existing `elopool.cloud` coinbase tags in historical blocks refer to this software.
+
 </div>
 
 ---
@@ -956,7 +960,7 @@ GNU General Public License v3. See [COPYING](COPYING) for details.
 ## 🙏 Credits
 
 - **Original CKPool** — Con Kolivas and the CKPool team, for the base architecture
-- **BlockSniper.ai development**
+- **BlockSniper.ai development** (published as *EloPool.cloud* until 2026)
   - Native CashAddr implementation (2025)
   - Pool operator fee system (2025)
   - Multi-difficulty management (2025)

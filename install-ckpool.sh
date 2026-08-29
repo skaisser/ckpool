@@ -189,7 +189,7 @@ cat > "$INSTALL_DIR/ckpool.conf" << 'EOF'
         "zmqnotify": "tcp://127.0.0.1:28333"
     }],
     "bchaddress": "bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy",
-    "btcsig": "EloPool.cloud",
+    "btcsig": "BlockSniper.ai",
     "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w",
     "poolfee": 2.0,
     "blockpoll": 50,
@@ -228,7 +228,7 @@ cat > "$INSTALL_DIR/ckpool-testnet.conf" << 'EOF'
         "zmqnotify": "tcp://127.0.0.1:28332"
     }],
     "bchaddress": "bchtest:qz3ah8rh7juw3gsstsnce3fnyura3d34qc6qqtc3zs",
-    "btcsig": "EloPool.cloud/TestNet",
+    "btcsig": "BlockSniper.ai/TestNet",
     "pooladdress": "bchtest:qp7azrnl28ezdvgnyjx3qmwfs8vph4jtxq9d7sdhez",
     "poolfee": 2.0,
     "blockpoll": 50,

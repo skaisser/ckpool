@@ -1080,8 +1080,9 @@ func skipCoinbaseHeightPush(script []byte) []byte {
 // longestPrintableRun returns the longest maximal run of printable ASCII in b.
 // Coinbase scriptSigs interleave the pool signature with binary extranonce
 // bytes, so the signature is recovered as the longest readable run rather than
-// by stopping at the first delimiter — the previous implementation returned
-// "EloPool.cloud/" instead of the real "EloPool.cloud/[Solo]".
+// by stopping at the first delimiter — the previous implementation truncated
+// the tag at the first "/", returning "BlockSniper.ai/" rather than the full
+// "BlockSniper.ai/[Solo]".
 func longestPrintableRun(b []byte) string {
 	best, start := "", -1
 	for i := 0; i <= len(b); i++ {
