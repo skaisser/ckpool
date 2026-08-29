@@ -1,15 +1,13 @@
 # Keep private working files out of the public repository.
 #
-# This repo is a PUBLIC mirror of the private working repo
-# (skaisser/blocksniper-ckpool), which deliberately tracks .planning/ dossiers
-# and CLAUDE.md. Those must never appear here.
+# This repo is PUBLIC. Local agent context (CLAUDE.md, AGENTS.md) and planning
+# dossiers (.planning/) are working files and must never appear here.
 #
 # .gitignore cannot do this job on its own: it only governs UNTRACKED files.
-# A file already tracked in the private fork arrives through a sync merge
-# regardless of any ignore rule, which is exactly how .planning/ and CLAUDE.md
-# reached master's history. This gate is the enforcement point -- it inspects
-# what is actually tracked at the tip and fails the merge if any of it is
-# private.
+# A file already tracked upstream arrives through a merge regardless of any
+# ignore rule, which is exactly how .planning/ and CLAUDE.md reached master's
+# history. This gate is the enforcement point -- it inspects what is actually
+# tracked at the tip and fails the merge if any of it is present.
 
 name: No private files
 
@@ -46,8 +44,8 @@ jobs:
           if hits=$(git ls-files | grep -E "$pattern"); then
             echo "::error::Private working files are tracked in this branch."
             echo
-            echo "The following paths belong to the private repo"
-            echo "(skaisser/blocksniper-ckpool) and must not be published here:"
+            echo "The following are local working files and must not be"
+            echo "published in this public repository:"
             echo
             printf '%s\n' "$hits" | sed 's/^/  /'
             echo
@@ -56,7 +54,7 @@ jobs:
             printf '%s\n' "$hits" | sed 's|^|  git rm -r --cached |'
             echo "  git commit -m '🧹 chore: untrack private working files'"
             echo
-            echo "They stay on disk and remain tracked in the private repo."
+            echo "They stay on disk -- only the tracking is removed."
             exit 1
           fi
 
