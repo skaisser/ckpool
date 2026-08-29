@@ -8,7 +8,7 @@ EloPool implements a dual-output coinbase mechanism that automatically splits bl
 
 When a solo miner finds a block, the pool creates a coinbase transaction with **two outputs**:
 
-1. **Miner Output**: Pays the found-block value to the miner's BCH address (solo mode) or the fallback `bchaddress` (regular pool mode)
+1. **Miner Output**: Pays the found-block value to the miner's own BCH address — their stratum username — in solo mode (`-B`). It falls back to `bchaddress` in two cases: a solo miner whose username is not address-shaped, and regular (non-solo) pool mode, where every block pays `bchaddress`
 2. **Fee Output**: Pays the pool operator's fee to `pooladdress`
 
 **Example with 6.25 BCH block and 2% fee:**
@@ -77,12 +77,19 @@ If rounding down produces **dust** (< 546 sats), the fee output is **omitted ent
 - **`pooladdress`** (required for dual-output fee splitting)
   - The pool operator's BCH address (receives the configured `poolfee` percentage)
   - Same address formats as `bchaddress`
-  - Must be distinct from `bchaddress`
+  - Should be distinct from `bchaddress` — **not enforced in code**, but see
+    the fallback note under *Solo Mode with Smart Fallback* for what happens
+    when they are equal
+  - Validated at stratifier startup. If bitcoind rejects it, the pool logs
+    `Pool fee address ... is invalid, disabling pool fee`, sets `poolfee` to 0
+    and keeps running — collecting nothing. Grep the log for
+    `Pool operator fee address valid` after any config change
 
 - **`poolfee`** (configurable, default production: 2.0)
-  - Fee percentage: 0.0 – 100.0
+  - Fee percentage, expressed as a percent of the block reward
   - Can be integer or decimal (0, 1, 1.5, 2.0, 10.5, etc.)
-  - Clamped at [0, 50] (values > 50 are rejected)
+  - **Clamped** to [0, 50] with a warning — a value above 50 is lowered to 50,
+    not rejected, and the pool starts anyway
   - Rounding: fees are always rounded down; dust outputs are omitted
   - Example: 2.0 = 2% pool fee (miner receives 98%)
 
@@ -201,7 +208,17 @@ When a miner connects with a username:
 
 3. **Non-address username** (e.g., `rig01`, `worker1`)
    - ✅ Accepted: Miner is authorized and mines for the pool's `bchaddress`
-   - Miner receives full block reward (no fee split — only solo miners splitting with pool operator)
+   - The user's payout script is copied from the pool's own at authorisation
+     (`stratifier.c`, `generate_user()` → `user->pool_fallback = true`), so a
+     block they find pays `bchaddress` — **not** `pooladdress`
+   - **The fee output is still cut.** The split is built into the shared
+     workbase and is gated only on `poolvalid && poolfee > 0` and the dust
+     check — never on `pool_fallback`. A fallback block pays
+     `(100 - poolfee)%` to `bchaddress` and `poolfee%` to `pooladdress`,
+     exactly like an address-based miner's block.
+   - This is why `bchaddress` and `pooladdress` should be **distinct**: set
+     them to the same address and a fallback block carries two coinbase
+     outputs to that one address, which coinbase parsers have to special-case.
 
 ### Example: Typo Protection
 
@@ -269,8 +286,11 @@ Each rental rental service still uses their username (usually an address or user
 
 ### Incorrect Fee Amount
 
-1. Confirm `poolfee` JSON value includes decimal (2.0, not "2")
-2. Verify poolfee is in range [0, 50]
+1. Confirm `poolfee` is a JSON **number**, not a string — `2` and `2.0` are
+   both accepted (`json_get_double` takes any `json_is_number`), but `"2.0"`
+   in quotes logs `Json entry poolfee is not a number` and leaves the fee at 0
+2. Verify poolfee is in range [0, 50] — above 50 it is clamped down to 50 and
+   the pool logs `Poolfee ... out of range, clamping to 50` at startup
 3. Check if fee rounds to dust (< 546 sats) — if so, fee output is omitted
 4. Inspect the block with `bitcoin-cli getblock <hash> 2`
 

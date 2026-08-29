@@ -45,3 +45,10 @@ libtool
 
 # Local planning dossiers (kept on disk, not published)
 .planning/
+
+# Go log API build output -- binaries are built on the build host and copied
+# to the pool server, never committed (see api/README.md). There is no CI
+# workflow for api/; verification runs on the build host.
+api/ckpool-api
+api/ckpool-api-linux-amd64
+api/ckpool-api-linux-arm64

@@ -1,0 +1,69 @@
+[Unit]
+# Read-only HTTP API over ckpool's log tree. See api/README.md.
+#
+# Three things to set before enabling this unit:
+#   1. User= / Group=          the account that RUNS ckpool. ckpool creates its
+#                              logdir mode 0750, so a different user cannot read
+#                              it without a group grant.
+#   2. WorkingDirectory=       where the ckpool-api binary lives.
+#   3. ExecStart=              full path to that binary.
+#
+# Everything else — the API key and both log paths — comes from the environment
+# file, which must NOT be world readable:
+#   sudo install -d -m 0755 /etc/ckpool-api
+#   sudo install -m 0600 /dev/null /etc/ckpool-api/ckpool-api.env
+#   printf 'CKPOOL_API_KEY=%s\n' "$(openssl rand -hex 32)" \
+#       | sudo tee /etc/ckpool-api/ckpool-api.env >/dev/null
+#
+# Never put the key in an Environment= line here: unit files are world readable
+# and `systemctl show` prints them to any user.
+
+Description=CKPool Log API (Go)
+Documentation=https://github.com/skaisser/blocksniper-ckpool
+After=network-online.target
+Wants=network-online.target
+
+# StartLimit* belong in [Unit] on systemd >= 229. They are silently ignored in
+# [Service], which is where they sat in the unit this was adapted from.
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=ckpool
+Group=ckpool
+WorkingDirectory=/opt/ckpool-api
+ExecStart=/opt/ckpool-api/ckpool-api
+
+# CKPOOL_API_KEY (required), CKPOOL_LOG_PATH, CKPOOL_USER_LOGS_PATH,
+# CKPOOL_API_PORT. The server refuses to start without a key.
+EnvironmentFile=/etc/ckpool-api/ckpool-api.env
+
+Restart=always
+RestartSec=5
+
+# The API must never be able to disturb the pool it reports on.
+MemoryMax=128M
+MemoryAccounting=true
+CPUQuota=25%
+TasksMax=50
+LimitNOFILE=4096
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ckpool-api
+
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
