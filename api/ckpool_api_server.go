@@ -500,6 +500,48 @@ func handleFindBlock(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// cashaddrPrefixes are the CashAddr forms a stratum username may carry. The
+// pool names each user's stats file after the exact auth string, so the same
+// key can live under a prefixed or a bare filename depending on how the miner
+// logged in.
+var cashaddrPrefixes = []string{"bitcoincash:", "bchtest:", "bchreg:"}
+
+// resolveUserFile maps a queried username to an existing stats file: the exact
+// (sanitized) name always wins; only when it is absent is the alternate
+// CashAddr form tried — bare for a prefixed query, each known prefix for a
+// bare one. Every candidate is filepath.Base-sanitized and confined to
+// userLogPath, so a crafted name cannot escape the users dir.
+func resolveUserFile(username string) (path string, resolvedName string, found bool) {
+	candidates := []string{username}
+	stripped := false
+	for _, p := range cashaddrPrefixes {
+		if strings.HasPrefix(username, p) {
+			candidates = append(candidates, strings.TrimPrefix(username, p))
+			stripped = true
+			break
+		}
+	}
+	if !stripped {
+		for _, p := range cashaddrPrefixes {
+			candidates = append(candidates, p+username)
+		}
+	}
+
+	absUserLogPath, _ := filepath.Abs(userLogPath)
+	for _, name := range candidates {
+		name = filepath.Base(name)
+		candidate := filepath.Join(userLogPath, name)
+		absPath, _ := filepath.Abs(candidate)
+		if !strings.HasPrefix(absPath, absUserLogPath) {
+			continue
+		}
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, name, true
+		}
+	}
+	return "", filepath.Base(username), false
+}
+
 func handleUserFile(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Query().Get("user")
 	if username == "" {
@@ -507,16 +549,23 @@ func handleUserFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sanitize username
-	username = filepath.Base(username)
 	// Was hardcoded to /home/elo/ckpool/logs/users, which 404s on any host where
 	// the pool does not run as `elo`. handleUserLog already derives this from
 	// CKPOOL_USER_LOGS_PATH; this handler was the one that got missed.
-	userFile := filepath.Join(userLogPath, username)
+	userFile, resolvedName, found := resolveUserFile(username)
+	if !found {
+		json.NewEncoder(w).Encode(UserFileResponse{
+			Error:    "User not found",
+			Username: resolvedName,
+		})
+		return
+	}
+	// Report the name the stats actually live under, so callers learn the
+	// canonical identity when a fallback form resolved.
+	username = resolvedName
 
-	// Check if file exists
 	info, err := os.Stat(userFile)
-	if os.IsNotExist(err) {
+	if err != nil {
 		json.NewEncoder(w).Encode(UserFileResponse{
 			Error:    "User not found",
 			Username: username,
@@ -681,26 +730,17 @@ func handleUserLog(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Sanitize username
-	username = filepath.Base(username)
-	userLog := filepath.Join(userLogPath, username)
-
-	// Check if file exists
-	if _, err := os.Stat(userLog); os.IsNotExist(err) {
+	// Sanitization and dir containment live inside resolveUserFile; a
+	// traversal attempt now reads as not-found rather than 403.
+	userLog, resolvedName, found := resolveUserFile(username)
+	if !found {
 		json.NewEncoder(w).Encode(UserLogResponse{
 			Lines:  []string{},
 			Exists: false,
 		})
 		return
 	}
-
-	// Verify path is within allowed directory
-	absPath, _ := filepath.Abs(userLog)
-	absUserLogPath, _ := filepath.Abs(userLogPath)
-	if !strings.HasPrefix(absPath, absUserLogPath) {
-		http.Error(w, "Access denied", http.StatusForbidden)
-		return
-	}
+	username = resolvedName
 
 	// Execute tail command
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1080,8 +1120,9 @@ func skipCoinbaseHeightPush(script []byte) []byte {
 // longestPrintableRun returns the longest maximal run of printable ASCII in b.
 // Coinbase scriptSigs interleave the pool signature with binary extranonce
 // bytes, so the signature is recovered as the longest readable run rather than
-// by stopping at the first delimiter — the previous implementation returned
-// "EloPool.cloud/" instead of the real "EloPool.cloud/[Solo]".
+// by stopping at the first delimiter — the previous implementation truncated
+// the tag at the first "/", returning "BlockSniper.ai/" rather than the full
+// "BlockSniper.ai/[Solo]".
 func longestPrintableRun(b []byte) string {
 	best, start := "", -1
 	for i := 0; i <= len(b); i++ {

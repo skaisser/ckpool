@@ -133,6 +133,41 @@ else
     echo -e "${YELLOW}UFW not found. Skipping firewall configuration.${NC}"
 fi
 
+# ---------------------------------------------------------------------------
+# Go log API port -- deliberately NOT opened to the world.
+#
+# The API key is the only authentication and it travels in cleartext over
+# HTTP, so a blanket `ufw allow 8888/tcp` hands the whole pool's log tree to
+# anyone who guesses or sniffs the token. The rule is scoped to the single
+# address that consumes the API, exactly as api/README.md requires.
+# Leaving the answer blank keeps the port loopback-only, which is correct when
+# the consuming app runs on this same host.
+# ---------------------------------------------------------------------------
+API_ENV="$INSTALL_DIR/api/ckpool-api.env"
+if command -v ufw &> /dev/null && [ -f "$API_ENV" ]; then
+    APIPORT=$(sed -n 's/^CKPOOL_API_PORT=//p' "$API_ENV" | tail -1)
+    APIPORT="${APIPORT:-8888}"
+    echo
+    echo -e "${YELLOW}Go log API detected (port $APIPORT).${NC}"
+    echo "This port must NOT face the internet - the key is cleartext over HTTP."
+    echo "Enter the address allowed to reach it (e.g. 203.0.113.10, or"
+    echo "10.0.0.0/24). Leave BLANK for loopback-only, which is right if the"
+    echo "app that consumes it runs on this machine."
+    read -r -p "Allowed source [blank = localhost only]: " API_SRC
+
+    if [ -z "$API_SRC" ]; then
+        echo -e "${GREEN}✓ No firewall rule added - API reachable only on 127.0.0.1:$APIPORT${NC}"
+    elif [[ "$API_SRC" =~ ^(0\.0\.0\.0(/0)?|any|ANY|\*)$ ]]; then
+        echo -e "${RED}✗ Refusing to expose the log API to the whole internet.${NC}"
+        echo "  Re-run and give a specific host or CIDR, or leave it blank."
+    else
+        ufw allow from "$API_SRC" to any port "$APIPORT" proto tcp \
+            comment "CKPool log API" \
+            && echo -e "${GREEN}✓ Port $APIPORT opened for $API_SRC only${NC}" \
+            || echo -e "${RED}✗ ufw rejected that address - check the format${NC}"
+    fi
+fi
+
 echo
 
 # Create systemd service file
@@ -227,6 +262,86 @@ EOF
     echo -e "${GREEN}✓ Testnet systemd service created${NC}"
 fi
 
+# ---------------------------------------------------------------------------
+# Go log API service (only if install-ckpool.sh built it)
+#
+# Runs as the ckpool user on purpose: ckpool creates its logdir mode 0750, so
+# any other account reads "permission denied" from every endpoint while
+# /health still answers, which is a confusing way to find that out.
+# ---------------------------------------------------------------------------
+API_DIR="$INSTALL_DIR/api"
+API_SERVICE_FILE="/etc/systemd/system/ckpool-api.service"
+API_INSTALLED=false
+API_PORT=8888
+
+if [ -x "$API_DIR/ckpool-api" ] && [ -f "$API_DIR/ckpool-api.env" ]; then
+    API_INSTALLED=true
+    # Honour the port the env file already declares.
+    ENVPORT=$(sed -n 's/^CKPOOL_API_PORT=//p' "$API_DIR/ckpool-api.env" | tail -1)
+    [ -n "$ENVPORT" ] && API_PORT="$ENVPORT"
+
+    echo
+    echo "Creating ckpool-api systemd service..."
+
+    # The env file holds the API key. Root-owned, 0600: systemd reads it as
+    # root before dropping to User=, so the service account never needs it.
+    chown root:root "$API_DIR/ckpool-api.env"
+    chmod 600 "$API_DIR/ckpool-api.env"
+
+    cat > "$API_SERVICE_FILE" <<APISVC
+[Unit]
+Description=CKPool Log API (Go)
+Documentation=https://github.com/skaisser/ckpool/blob/master/api/README.md
+After=network-online.target ckpool.service
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=$ACTUAL_USER
+Group=$ACTUAL_USER
+WorkingDirectory=$API_DIR
+ExecStart=$API_DIR/ckpool-api
+
+# Never use Environment= for the key: unit files are world readable and
+# \`systemctl show\` prints them to any user.
+EnvironmentFile=$API_DIR/ckpool-api.env
+
+Restart=always
+RestartSec=5
+
+# The API must never be able to disturb the pool it reports on.
+MemoryMax=128M
+MemoryAccounting=true
+CPUQuota=25%
+TasksMax=50
+LimitNOFILE=4096
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadOnlyPaths=$INSTALL_DIR
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ckpool-api
+
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
+APISVC
+
+    echo -e "${GREEN}✓ ckpool-api service created (port $API_PORT)${NC}"
+fi
+
 # Reload systemd
 echo "Reloading systemd daemon..."
 systemctl daemon-reload
@@ -247,6 +362,23 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             systemctl enable ckpool-testnet.service
             echo -e "${GREEN}✓ CKPool Testnet service enabled${NC}"
+        fi
+    fi
+fi
+
+if [ "$API_INSTALLED" = true ]; then
+    echo
+    echo -e "${YELLOW}Enable the Go log API to start on boot?${NC}"
+    read -p "(y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        systemctl enable ckpool-api.service
+        systemctl restart ckpool-api.service
+        sleep 1
+        if systemctl is-active --quiet ckpool-api.service; then
+            echo -e "${GREEN}✓ ckpool-api enabled and running on port $API_PORT${NC}"
+        else
+            echo -e "${RED}✗ ckpool-api failed to start. Check: journalctl -u ckpool-api -n 40${NC}"
         fi
     fi
 fi

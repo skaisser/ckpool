@@ -110,16 +110,19 @@ follows:
 
 You can define a signature to be mined into any blocks you solved as follows:
 
-"btcsig" : "/mined by ck/",
+"btcsig" : "BlockSniper.ai",
 
 
-You may wish to enable a donation to the author of ckpool with any blocks found
-as a percentage (such as 0.5%) as follows:
+NOTE: upstream ckpool's "donation" option has been REMOVED from this fork along with
+the rest of the BTC donation path. Setting it has no effect. Use "poolfee" instead,
+which pays the operator via a second coinbase output -- see POOL_FEE.md:
 
-"donation" : 0.5,
+"poolfee" : 2.0,
 
-Donation is completely optional and disabled by default, but most appreciated.
-0.5% would be a reasonable value.
+The operator fee is optional. If "poolfee" is absent the pool takes nothing (0%).
+Values outside 0-50 are clamped with a warning, and a fee that rounds down below
+the 546 sat dust threshold is omitted entirely, so the coinbase outputs always sum
+to the full block reward. The sample configs shipped with this fork set 2.0.
 
 
 By default ckpool binds to every local IP address on the hardware it's run on,
