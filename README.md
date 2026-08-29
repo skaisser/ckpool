@@ -874,8 +874,11 @@ payout address.
 
 ## 🚧 Roadmap — The Go Log API
 
-> **Status: in the tree, not yet released.** The source lives under [`api/`](api/) and is being
-> hardened ahead of a tagged release. Expect the interface to move until then.
+> **Installed by `install-ckpool.sh`.** The installer builds the binary, generates a 32-byte
+> API key at `~/ckpool/api/ckpool-api.env` (mode 0600), and `post-install.sh` adds the systemd
+> unit and a firewall rule **scoped to one address** — the key is the only authentication and
+> HTTP sends it in cleartext, so the port must never face the internet. Interfaces may still
+> move ahead of a tagged release.
 
 CKPool's own administration interface is a **Unix domain socket** driven by `ckpmsg`. That is the
 right design for control commands, and the wrong one for a dashboard: it needs shell access on
@@ -903,6 +906,13 @@ GET /user-log?user=&lines=N    tail one miner's log
 GET /user-file?user=           one miner's full status file
 GET /coinbase?user=NAME        decode the coinbase this miner is working on
 GET /metrics                   service-level counters
+```
+
+Reach it once installed:
+
+```bash
+KEY=$(sudo sed -n 's/^CKPOOL_API_KEY=//p' ~/ckpool/api/ckpool-api.env)
+curl -H "Authorization: Bearer $KEY" http://127.0.0.1:8888/stats
 ```
 
 Full documentation: [`api/README.md`](api/README.md) · [`api/COINBASE_API.md`](api/COINBASE_API.md)
