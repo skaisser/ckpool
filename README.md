@@ -1,44 +1,49 @@
 <div align="center">
 
-# ⛏️ EloPool
+<img src=".github/assets/blocksniper-logo.png" alt="BlockSniper.ai — Bitcoin Cash (BCH) solo mining pool and stratum server software, a production CKPool fork" width="640">
 
-### Production-Ready Bitcoin Cash Mining Pool Software
+# BlockSniper.ai — CKPool Fork for Bitcoin Cash
 
-**A heavily enhanced fork of CKPool, purpose-built for Bitcoin Cash (BCH) solo mining.**
+### Open-source **Bitcoin Cash (BCH) mining pool** and **Stratum server** software
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](COPYING)
-[![Coin: BCH](https://img.shields.io/badge/coin-Bitcoin%20Cash-8DC351.svg)](https://bitcoincash.org)
-[![Status: Active Development](https://img.shields.io/badge/status-active%20development-orange.svg)](#project-status)
-[![Blocks Mined: 66+](https://img.shields.io/badge/mainnet%20blocks-66%2B-success.svg)](#-production-achievements)
-[![Written in C](https://img.shields.io/badge/written%20in-C-555555.svg)](src/)
+**The CKPool fork built for Bitcoin Cash solo mining** — native CashAddr, per-address on-chain
+payouts, a configurable operator fee, sub-100 ms multi-node failover, and out-of-the-box
+NiceHash / MiningRigRentals compatibility.
 
-Native CashAddr · Per-address solo payouts · Configurable operator fee · Instant multi-node failover
+[![Bitcoin Cash](https://img.shields.io/badge/BITCOIN%20CASH-BCH-0AC18E?style=for-the-badge&logo=bitcoincash&logoColor=white&labelColor=030711)](https://bitcoincash.org)
+[![Stratum Server](https://img.shields.io/badge/STRATUM-V1%20SERVER-07D1FA?style=for-the-badge&labelColor=030711)](#%EF%B8%8F-architecture)
+[![Mainnet Blocks](https://img.shields.io/badge/MAINNET%20BLOCKS-66%2B-0281F5?style=for-the-badge&labelColor=030711)](#-production-achievements)
+[![Built in C](https://img.shields.io/badge/BUILT%20IN-C-5EE7FF?style=for-the-badge&logo=c&logoColor=white&labelColor=030711)](src/)
+[![License GPLv3](https://img.shields.io/badge/LICENSE-GPL%20v3-9FEEFF?style=for-the-badge&labelColor=030711)](COPYING)
+
+**Running in production at [blocksniper.ai](https://blocksniper.ai)** · `stratum+tcp://solo.blocksniper.ai:3333`
 
 </div>
 
 ---
 
-<a id="project-status"></a>
+## 🧭 Why This Fork Instead of Stock CKPool?
 
-> [!WARNING]
-> ### 🚧 Project Status — Active Development
->
-> **This repository is under active development and its branches move fast.** Interfaces,
-> config keys, and on-chain payout behaviour can change between commits without notice.
->
-> **If you run a pool with real money on it, fork this repo and deploy from your own fork.**
-> Pin a commit you have tested yourself, review every upstream change before you pull it in,
-> and never point production at a moving branch here.
->
-> Before you go live on mainnet, validate your setup end-to-end on **regtest or testnet** —
-> `testing/regtest-e2e.sh` exercises the full money path (coinbase splits, fee outputs,
-> address classification, typo rejection) and is the fastest way to prove your build pays
-> the addresses you expect.
->
-> **Please share what you find.** Bug reports, regression cases, production logs, and
-> pull requests back to this repo are genuinely welcome — this software handles block
-> rewards, and every extra pair of eyes on the payout path makes it safer for everyone.
-> Open an [issue](https://github.com/skaisser/ckpool/issues) or send a PR.
+If you are searching for **CKPool for Bitcoin Cash**, **BCH pool software**, or a **BCH stratum
+server** you can actually put real money behind — this is it. Upstream CKPool is excellent
+Bitcoin software, but it is *Bitcoin* software: it does not understand CashAddr, it has no
+operator fee mechanism, its node failover takes seconds, and rental services trip over its
+difficulty handling.
+
+BlockSniper.ai is a **heavily modified BCH-only fork** that fixes all four, and has **66 blocks
+found on BCH mainnet** to show for it.
+
+| You want to… | Stock CKPool | **BlockSniper.ai** |
+|---|---|---|
+| Let miners use a `bitcoincash:q…` address as their username | ❌ Rejected | ✅ Native CashAddr, all prefixes |
+| Pay every miner **on-chain, directly, in the block they found** | ❌ | ✅ Per-address dual-output coinbase |
+| Take a pool fee without hacking the source | ❌ Donation code only | ✅ `poolfee`, 0–50%, configurable |
+| Survive a node restart without dropping miners | ⚠️ 4+ seconds | ✅ **<100 ms**, sync-aware |
+| Accept NiceHash / MiningRigRentals hashrate | ⚠️ Manual, fragile | ✅ Auto-detected by useragent |
+| Brand your own coinbase tag | ❌ Hardcoded `ckpool` | ✅ `btcsig`, up to 38 bytes |
+
+**Keywords:** bitcoin cash mining pool software · BCH stratum server · ckpool fork · solo mining
+BCH · CashAddr pool · bitcoin cash solo pool · ASIC mining pool · Bitaxe BCH.
 
 ---
 
@@ -46,12 +51,13 @@ Native CashAddr · Per-address solo payouts · Configurable operator fee · Inst
 
 | Getting Started | Operating the Pool | Reference |
 |---|---|---|
-| [Mine to Your Own Address](#-mine-directly-to-your-own-bch-address) | [Running the Pool](#-running-the-pool) | [What's Different from CKPool](#-whats-different-from-original-ckpool) |
-| [Requirements](#-requirements) | [Multi-Node Configuration](#multi-node-configuration-highly-recommended-for-production) | [Key Features](#-key-features) |
-| [Installation](#%EF%B8%8F-installation) | [Solo Mode Cutover](#-deploying-solo-mode-cutover) | [Architecture](#%EF%B8%8F-architecture) |
-| [Configuration](#%EF%B8%8F-configuration) | [Monitoring](#monitor-operations) | [API Commands](#-api-commands) |
-| [BCH Node Setup](#-bch-node-setup) | [Troubleshooting](#-troubleshooting) | [Changelog](#-changelog) |
-| [NiceHash & MRR Setup](#-nicehash--miningrigrentals-setup) | [Testing](#-testing) | [Contributing](#-contributing) |
+| [Why This Fork](#-why-this-fork-instead-of-stock-ckpool) | [Running the Pool](#-running-the-pool) | [What's Different from CKPool](#-whats-different-from-original-ckpool) |
+| [Mine to Your Own Address](#-mine-directly-to-your-own-bch-address) | [Multi-Node Configuration](#multi-node-configuration-highly-recommended-for-production) | [Key Features](#-key-features) |
+| [Requirements](#-requirements) | [Solo Mode Cutover](#-deploying-solo-mode-cutover) | [Architecture](#%EF%B8%8F-architecture) |
+| [Installation](#%EF%B8%8F-installation) | [Monitoring](#monitor-operations) | [API Commands](#-api-commands) |
+| [Configuration](#%EF%B8%8F-configuration) | [Troubleshooting](#-troubleshooting) | [Roadmap — Go API](#-roadmap--the-go-log-api) |
+| [BCH Node Setup](#-bch-node-setup) | [Testing](#-testing) | [Changelog](#-changelog) |
+| [NiceHash & MRR Setup](#-nicehash--miningrigrentals-setup) | [Support the Project](#-support-the-project) | [Contributing](#-contributing) |
 
 ---
 
@@ -99,9 +105,9 @@ The pool automatically detects your network (mainnet/testnet/regtest) from the B
 
 ## 🚀 What's Different from Original CKPool?
 
-This is not just a simple fork. EloPool has been **extensively modified** for Bitcoin Cash:
+This is not just a simple fork. BlockSniper.ai has been **extensively modified** for Bitcoin Cash:
 
-| Feature | Original CKPool | EloPool |
+| Feature | Original CKPool | BlockSniper.ai |
 |---------|----------------|----------|
 | **CashAddr Support** | ❌ None | ✅ Native implementation |
 | **Pool Fee System** | ❌ Donation only | ✅ Configurable dual-output |
@@ -134,7 +140,7 @@ This is not just a simple fork. EloPool has been **extensively modified** for Bi
 - **ASICBoost support** for improved mining efficiency
 - **Advanced vardiff** algorithm with stable high-difficulty handling
 
-### EloPool Major Enhancements (2025)
+### BlockSniper.ai Major Enhancements
 
 #### 1. **Pool Operator Fee System** ✅ NEW!
   - Automatic fee distribution in coinbase transaction
@@ -399,7 +405,7 @@ The `btcsig` parameter controls the **entire** coinbase message that appears in 
     "bchaddress": "bitcoincash:qqqupxkkrjew738czfzpz5e33sej6wm9zqdquq0aze",
     "pooladdress": "bitcoincash:qregedwmg8tr2ymnp8j6f0tesuj4r9lqnqjfmlvj6w",
     "poolfee": 2.0,
-    "btcsig": "EloPool.cloud",
+    "btcsig": "BlockSniper.ai",
     "mindiff": 500000,
     "startdiff": 500000,
     "maxdiff": 1000000,
@@ -752,7 +758,7 @@ ulimit -n 1048576
 
 ## 📊 API Commands
 
-CKPool uses Unix sockets for administration:
+CKPool uses Unix sockets for administration. For read-only HTTP access suitable for dashboards, see the [Go log API](#-roadmap--the-go-log-api) under [`api/`](api/).
 
 ```bash
 # Pool statistics
@@ -860,50 +866,124 @@ payout address.
   coinbase outputs on a throwaway regtest node
 - 🧪 New `test/addrclassify` unit test covering address classification across all networks
 
+---
+
+## 🚧 Roadmap — The Go Log API
+
+> **Status: in the tree, not yet released.** The source lives under [`api/`](api/) and is being
+> hardened ahead of a tagged release. Expect the interface to move until then.
+
+CKPool's own administration interface is a **Unix domain socket** driven by `ckpmsg`. That is the
+right design for control commands, and the wrong one for a dashboard: it needs shell access on
+the pool host, it is not concurrent, and anything that wants pool state ends up shelling out or
+tailing logs by hand. The Python service that filled that gap did not hold up either.
+
+`ckpool-api` replaces it with a **single static Go binary** that exposes ckpool's log tree over
+authenticated, read-only HTTP:
+
+| Property | How |
+|---|---|
+| **Millisecond responses** | Responses are cached 60 s in-process; a hit never touches the disk |
+| **Thousands of concurrent readers** | Goroutine-per-request, no interpreter, no GIL, no worker pool to size |
+| **Zero dependencies** | Go standard library only — no `go.sum`, no vendoring, one binary to `scp` |
+| **Safe by default** | Bearer-token auth, 20 req/min/IP rate limit, and it is **read-only** — it never touches the control sockets |
+| **Ships with the parser it needs** | It decodes coinbase layout defined in `src/stratifier.c`, so it lives in this repo and changes in the same commit |
+
+```http
+GET /health                    liveness, log presence and size
+GET /stats                     parsed pool stats — hashrate, workers, users
+GET /tail?lines=N              tail the main log (capped at 1000)
+GET /grep?pattern=             search the main log
+GET /find-block?height=N       locate a solved block with context
+GET /user-log?user=&lines=N    tail one miner's log
+GET /user-file?user=           one miner's full status file
+GET /coinbase?user=NAME        decode the coinbase this miner is working on
+GET /metrics                   service-level counters
+```
+
+Full documentation: [`api/README.md`](api/README.md) · [`api/COINBASE_API.md`](api/COINBASE_API.md)
+
+---
+
 ## 🤝 Contributing
 
-**Forking is the recommended way to run this software** — see [Project Status](#project-status)
-above. Run production from your own fork, and send anything useful back here.
+This software writes coinbase outputs — it decides where block rewards go. Every extra pair of
+eyes on the payout path makes it safer for everyone, so bug reports, regression cases, production
+logs and pull requests are genuinely welcome.
 
-1. **Fork the repository** and deploy your pool from your fork, pinned to a commit you have tested
-2. Create a feature branch off `homolog`
-3. Test thoroughly — `make check` for units, `./testing/regtest-e2e.sh` for the money path,
+1. Fork the repository and create a feature branch off `homolog`
+2. Test thoroughly — `make check` for units, `./testing/regtest-e2e.sh` for the money path,
    then testnet before mainnet
-4. Submit a pull request describing what you observed, not just what you changed
+3. Submit a pull request describing **what you observed**, not just what you changed
 
 **Especially valuable contributions:**
 
 | What | Why it helps |
 |---|---|
-| Payout-path bug reports | This code writes coinbase outputs — every real-world edge case found is money someone doesn't lose |
+| Payout-path bug reports | Every real-world edge case found is money someone doesn't lose |
 | Regression test cases | A failing scenario added to `testing/regtest-e2e.sh` is worth more than a description of the bug |
 | Production logs | Failover behaviour, vardiff under real ASICs, and rental-service quirks are hard to reproduce synthetically |
 | Miner/hardware compatibility reports | Which ASICs, firmware and rental services work (or don't) with which settings |
 
+> **Running a pool with real money on it?** Validate end-to-end on **regtest or testnet** first —
+> `testing/regtest-e2e.sh` exercises the full money path (coinbase splits, fee outputs, address
+> classification, typo rejection) and is the fastest way to prove your build pays the addresses
+> you expect.
+
+---
+
+## 💰 Support the Project
+
+This fork is free, GPLv3, and developed in the open. If it earned you a block — or saved you from
+losing one — a donation keeps the lights on and the development going.
+
+| Coin | Address |
+|---|---|
+| 🪙 **Bitcoin Cash (BCH)** | `bitcoincash:qq6avlec5l7769jhk5mk7rnsgz49wcx2kgxaklp9e8` |
+| ₿ **Bitcoin (BTC)** | `bc1q8ukjnlykdpzry9j72lf7ekmpnf2umna6jyxqhn` |
+| 🔷 **Ethereum (ETH)** | `0x79eb82Ee97Ce9D02534f7927F64C5BdC4F396301` |
+| ☀️ **Solana (SOL)** | `CcnuMRpNapWboQYEGw3KKfC3Eum5JWosZeC9ktGr2oyQ` |
+| 🐕 **Dogecoin (DOGE)** | `DNU41AwyLba2rCzmjjr8SoYuzhjWkWTHpB` |
+
+Starring the repo and reporting what you find are worth just as much. 🙏
+
+---
+
 ## 📝 License
 
-GNU Public License V3. See [COPYING](COPYING) for details.
+GNU General Public License v3. See [COPYING](COPYING) for details.
 
 ## 🙏 Credits
 
-- **Original CKPool**: Con Kolivas and the CKPool team (base architecture)
-- **EloPool Development**:
-  - CashAddr implementation (2025)
-  - Pool fee system (2025)
-  - Multi-difficulty enhancements (2025)
+- **Original CKPool** — Con Kolivas and the CKPool team, for the base architecture
+- **BlockSniper.ai development**
+  - Native CashAddr implementation (2025)
+  - Pool operator fee system (2025)
+  - Multi-difficulty management (2025)
   - Per-address solo mining (2026)
-  - BCH-specific optimizations
-- **Testing**: Successfully mining on BCH testnet since September 2025
-- **Contributors**: Everyone who has reported a bug, sent a log, or opened a PR — thank you
+  - Go log API (2026)
+  - BCH-specific optimisations
+- **Contributors** — everyone who has reported a bug, sent a log, or opened a PR. Thank you.
 
 ## 📞 Support
 
 - **Issues**: [GitHub Issues](https://github.com/skaisser/ckpool/issues) — bug reports and findings welcome
+- **Pool**: [blocksniper.ai](https://blocksniper.ai) — the live pool running this software
 - **Documentation**: [Wiki](https://github.com/skaisser/ckpool/wiki)
 - **Pool fee details**: [POOL_FEE.md](POOL_FEE.md)
 - **Solo mining notes**: [README-SOLOMINING](README-SOLOMINING)
-- **API reference**: [CKPOOL_API_GUIDE.md](CKPOOL_API_GUIDE.md)
+- **Go log API**: [api/README.md](api/README.md)
+- **CKPool control interface**: [CKPOOL_API_GUIDE.md](CKPOOL_API_GUIDE.md)
 
 ---
 
-*EloPool - Production-ready Bitcoin Cash mining pool software with native CashAddr support*
+<div align="center">
+
+<img src=".github/assets/blocksniper-icon.png" alt="BlockSniper.ai mining pool logo" width="90">
+
+**BlockSniper.ai** — open-source Bitcoin Cash mining pool and stratum server software.
+Native CashAddr · per-address solo payouts · sub-100 ms node failover.
+
+[blocksniper.ai](https://blocksniper.ai) · [Report an issue](https://github.com/skaisser/ckpool/issues) · GPLv3
+
+</div>
