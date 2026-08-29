@@ -1,6 +1,6 @@
 # Pool Fee System — Solo Mode Payment Splitting
 
-EloPool implements a dual-output coinbase mechanism that automatically splits block rewards between miners and the pool operator. This document explains the mechanics, configuration, and verification.
+BlockSniper.ai implements a dual-output coinbase mechanism that automatically splits block rewards between miners and the pool operator. This document explains the mechanics, configuration, and verification.
 
 ## How It Works
 
@@ -129,7 +129,7 @@ If rounding down produces **dust** (< 546 sats), the fee output is **omitted ent
 
 ### Using the Regression Test Suite
 
-EloPool includes an end-to-end test suite at `testing/regtest-e2e.sh` that:
+BlockSniper.ai includes an end-to-end test suite at `testing/regtest-e2e.sh` that:
 - Mines blocks in regtest mode
 - Verifies dual-output coinbase creation
 - Confirms fee calculations are correct
@@ -296,4 +296,4 @@ Each rental rental service still uses their username (usually an address or user
 
 ---
 
-*EloPool Pool Fee System — Non-custodial, dual-output, solo mining with automatic operator fee distribution*
+*BlockSniper.ai Pool Fee System — Non-custodial, dual-output, solo mining with automatic operator fee distribution*

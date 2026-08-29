@@ -27,25 +27,25 @@ Authorization: Bearer YOUR_API_KEY
 ```json
 {
   "username": "skaisser",
-  "coinbase_hex": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff2a03c4080e000423f8e768043c73e2220c0d456c6f506f6f6c2e636c6f7564ffffffff0263924212000000001976a91401c09ad61cb2ef44f812441153318c332d3b651088ac40665f00000000001976a914f28cb5db41d635137309e5a4bd7987255197e09888ac00000000",
-  "coinbase_message": "EloPool.cloud",
+  "coinbase_hex": "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1f03c4080e000423f8e768043c73e2220c0e426c6f636b536e697065722e6169ffffffff0263924212000000001976a91401c09ad61cb2ef44f812441153318c332d3b651088ac40665f00000000001976a914f28cb5db41d635137309e5a4bd7987255197e09888ac00000000",
+  "coinbase_message": "BlockSniper.ai",
   "outputs": [
     {
-      "value": 306184547,
-      "value_bch": "3.06184547",
+      "value": 306352739,
+      "value_bch": "3.06352739",
       "address": "1AGQcP3KNqTAQkZQA2LBCKqvYn1C4V7cS",
       "type": "miner"
     },
     {
-      "value": 6251840,
-      "value_bch": "0.06251840",
+      "value": 6252096,
+      "value_bch": "0.06252096",
       "address": "1P7V69n7kiJojJ6iJfNyJcuS2TPW14hLaN",
       "type": "pool_fee"
     }
   ],
-  "total_value": 312436387,
-  "total_value_bch": "3.12436387",
-  "block_height": 919747,
+  "total_value": 312604835,
+  "total_value_bch": "3.12604835",
+  "block_height": 919748,
   "network_bits": "18019a90",
   "timestamp": 1760031366
 }
@@ -57,7 +57,7 @@ Authorization: Bearer YOUR_API_KEY
 |-------|------|-------------|
 | `username` | string | The username parameter provided in the request |
 | `coinbase_hex` | string | Full coinbase transaction in hexadecimal format |
-| `coinbase_message` | string | Pool branding message extracted from coinbase (e.g., "EloPool.cloud") |
+| `coinbase_message` | string | Pool branding message extracted from coinbase (e.g., "BlockSniper.ai") |
 | `outputs` | array | Array of coinbase outputs (miner reward + pool fee) |
 | `total_value` | integer | Total block reward in satoshis |
 | `total_value_bch` | string | Total block reward formatted in BCH |

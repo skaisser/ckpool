@@ -19,7 +19,7 @@
 # and `systemctl show` prints them to any user.
 
 Description=CKPool Log API (Go)
-Documentation=https://github.com/skaisser/blocksniper-ckpool
+Documentation=https://github.com/skaisser/ckpool/blob/master/api/README.md
 After=network-online.target
 Wants=network-online.target
 

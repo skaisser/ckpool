@@ -32,6 +32,12 @@ requests/minute per IP, responses cached 60s.
 | `GET /coinbase?user=NAME` | decode the coinbase this miner is currently working on — see [COINBASE_API.md](COINBASE_API.md) |
 | `GET /metrics` | service-level counters |
 
+`/user-log` and `/user-file` resolve both CashAddr forms of a username: the pool
+names each stats file after the exact string the miner authorized with, so a
+query for `qzxq…` also finds `bitcoincash:qzxq…` (and `bchtest:`/`bchreg:`), and
+vice versa. An exact match always wins, and the response's `username` field
+carries the name the stats actually live under.
+
 ## Configuration
 
 Environment only. There is no config file.
