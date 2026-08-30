@@ -465,6 +465,19 @@ The `btcsig` parameter controls the **entire** coinbase message that appears in 
 - ✅ **Useragent detection**: Tested & working with NiceHash
 - ✅ **Pattern matching**: Tested & working in production
 
+> [!IMPORTANT]
+> **Keep your stratum port below 4000.** Any port above 4000 is silently treated
+> as a "highdiff" port (`src/connector.c`): every client on it is handed
+> `highdiff` — **1,000,000 by default** — which overrides `startdiff`,
+> `mindiff` and your `mindiff_overrides` entirely. Rented hashrate then submits
+> far too few shares, the buyer's hashrate estimate goes ragged, and you see red
+> deltas and apparent drops with nothing wrong in the logs. The default 3333 is
+> fine; 3334 is fine; 8888 is not.
+>
+> Also consider setting **`maxdiff`** to a real ceiling instead of the shipped
+> `0` (unlimited). With no cap, vardiff can climb until the share rate is too
+> sparse for a rental service to measure your hashrate steadily.
+
 ### For Pool Operators
 
 Just add to your config:
