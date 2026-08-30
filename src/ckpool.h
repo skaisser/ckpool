@@ -393,7 +393,37 @@ struct apimsg {
 static inline void ckpool_api(ckpool_t __maybe_unused *ckp, apimsg_t __maybe_unused *apimsg) {};
 static inline json_t *json_encode_errormsg(json_error_t __maybe_unused *err_val) { return NULL; };
 static inline json_t *json_errormsg(const char __maybe_unused *fmt, ...) { return NULL; };
-static inline void send_api_response(json_t __maybe_unused *val, const int __maybe_unused sockd) {};
+/* Upstream left this as an empty placeholder (commit "Placeholders for api
+ * files"), so every command that answers through it -- users, workers,
+ * clients, getuser, getworker, userclients, workerclients and the generator's
+ * proxy commands -- accepted the connection and then replied with nothing at
+ * all. ckpmsg reported "Received empty reply", callers saw an empty string
+ * where JSON was expected, and the leaked json_t was never released. Only
+ * `stats` and `ping` appeared to work because they call send_unix_msg
+ * directly.
+ *
+ * Ownership matches how every caller already behaves: they build a json_t,
+ * hand it over and never decref it, so this consumes the reference. A NULL
+ * val is an error path in the caller; answer "{}" rather than nothing so the
+ * client gets a parseable reply instead of blocking until its read times
+ * out. */
+static inline void send_api_response(json_t *val, const int sockd)
+{
+	char *buf;
+
+	if (unlikely(!val)) {
+		send_unix_msg(sockd, "{}");
+		return;
+	}
+	buf = json_dumps(val, JSON_COMPACT);
+	json_decref(val);
+	if (unlikely(!buf)) {
+		send_unix_msg(sockd, "{}");
+		return;
+	}
+	send_unix_msg(sockd, buf);
+	free(buf);
+}
 
 /* Subclients have client_ids in the high bits. Returns the value of the parent
  * client if one exists. */
