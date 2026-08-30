@@ -209,7 +209,13 @@ void logmsg(int loglevel, const char *fmt, ...);
 		memcpy(tmp42, BUF + OFFSET, CPY); \
 		logmsg(__lvl, "%s", tmp42);\
 		OFFSET += CPY; \
-		LEN -= OFFSET; \
+		/* Was `LEN -= OFFSET`. OFFSET accumulates across iterations while \
+		 * only CPY bytes were consumed, so LEN collapsed far too fast and \
+		 * the loop exited with the tail of the message never emitted: \
+		 * anything longer than ~1020 chars was silently truncated. That \
+		 * hit ckpool's own long log lines as well as ckpmsg printing a \
+		 * large API response, where it produced unparseable half-JSON. */ \
+		LEN -= CPY; \
 	} \
 	free(BUF); \
 } while(0)
