@@ -11,8 +11,49 @@ CKPool doesn't use a traditional HTTP API. Instead, it uses Unix domain sockets 
 ## Basic Usage
 
 ```bash
-ckpmsg -s /tmp/ckpool/<process> <command>
+printf '<command>\n' | ckpmsg -s <parent> -n <pool-name> -N <process>
 ```
+
+Two things about `ckpmsg` are easy to get wrong, and both fail **silently**:
+
+1. **The command is read from stdin, not argv** (`src/ckpmsg.c:121`). A trailing
+   `ckpmsg ... stats` is ignored and you get empty output with exit status 0.
+2. **The socket path is assembled from three flags** as `<-s>/<-n>/<-N>`
+   (`src/ckpmsg.c:252-262`) — `-s` is a *parent* directory, not the socket itself.
+
+With the default `"sockdir": "/tmp/ckpool"`, the stratifier socket is
+`/tmp/ckpool/stratifier`, so the flags are `-s /tmp -n ckpool -N stratifier`.
+For any other sockdir, either split it into parent and basename, or point `-n`
+at the current directory:
+
+```bash
+printf 'stats\n' | ckpmsg -s /var/run/mypool -n . -N stratifier
+```
+
+### A shell helper you will want
+
+`ckpmsg` is a debugging tool, not a JSON transport. It writes its logging to
+**stdout**, mixed in with the reply, and it prints through `LOGMSGSIZ`, which
+emits at most 510 characters per line — so any sizeable response arrives split
+across several lines behind two lines of chatter. Piping it straight into `jq`
+fails on anything bigger than a toy pool.
+
+```bash
+ckpmsg_json() {
+    printf '%s\n' "$1" \
+        | ckpmsg -s /tmp -n ckpool -N "${2:-stratifier}" 2>/dev/null \
+        | sed -n '/Received response: /,$p' \
+        | sed '1s/^.*Received response: //' \
+        | tr -d '\n'
+}
+
+ckpmsg_json stats | jq .
+ckpmsg_json users | jq '.users | length'
+```
+
+> For anything programmatic — a dashboard, monitoring, a web app — prefer the
+> read-only HTTP service in [`api/`](api/README.md). It returns clean JSON over
+> an authenticated socket and does not require shell access to the pool host.
 
 Where `<process>` is one of:
 - `stratifier` - Main mining process (most commands)
@@ -26,7 +67,7 @@ Where `<process>` is one of:
 
 Get overall pool statistics:
 ```bash
-ckpmsg -s /tmp/ckpool/stratifier stats
+printf 'stats\n' | ckpmsg -s /tmp -n ckpool -N stratifier
 ```
 
 Returns JSON with:
@@ -40,7 +81,7 @@ Returns JSON with:
 
 Get a list of all users:
 ```bash
-ckpmsg -s /tmp/ckpool/stratifier users
+printf 'users\n' | ckpmsg -s /tmp -n ckpool -N stratifier
 ```
 
 Returns JSON array with all users and their statistics.
@@ -49,7 +90,7 @@ Returns JSON array with all users and their statistics.
 
 Get detailed worker information:
 ```bash
-ckpmsg -s /tmp/ckpool/stratifier workers
+printf 'workers\n' | ckpmsg -s /tmp -n ckpool -N stratifier
 ```
 
 Returns JSON with all workers grouped by user.
@@ -58,19 +99,19 @@ Returns JSON with all workers grouped by user.
 
 Get information about a specific user:
 ```bash
-ckpmsg -s /tmp/ckpool/stratifier user.info=USERNAME
+printf 'user.info=USERNAME\n' | ckpmsg -s /tmp -n ckpool -N stratifier
 ```
 
 Example:
 ```bash
-ckpmsg -s /tmp/ckpool/stratifier user.info=skaisser
+printf 'user.info=skaisser\n' | ckpmsg -s /tmp -n ckpool -N stratifier
 ```
 
 ### 5. Get Current Work
 
 View the current work template:
 ```bash
-ckpmsg -s /tmp/ckpool/stratifier current.workbase
+printf 'current.workbase\n' | ckpmsg -s /tmp -n ckpool -N stratifier
 ```
 
 ### 6. Change Log Level
@@ -78,13 +119,13 @@ ckpmsg -s /tmp/ckpool/stratifier current.workbase
 Adjust logging verbosity:
 ```bash
 # Set to debug
-ckpmsg -s /tmp/ckpool/stratifier loglevel=7
+printf 'loglevel=7\n' | ckpmsg -s /tmp -n ckpool -N stratifier
 
 # Set to notice (default)
-ckpmsg -s /tmp/ckpool/stratifier loglevel=5
+printf 'loglevel=5\n' | ckpmsg -s /tmp -n ckpool -N stratifier
 
 # Set to warning only
-ckpmsg -s /tmp/ckpool/stratifier loglevel=3
+printf 'loglevel=3\n' | ckpmsg -s /tmp -n ckpool -N stratifier
 ```
 
 Log levels:
@@ -101,21 +142,21 @@ Log levels:
 
 Disconnect a specific user:
 ```bash
-ckpmsg -s /tmp/ckpool/stratifier dropuser=USERNAME
+printf 'dropuser=USERNAME\n' | ckpmsg -s /tmp -n ckpool -N stratifier
 ```
 
 ### 8. Pool Summary
 
 Get a quick summary:
 ```bash
-ckpmsg -s /tmp/ckpool/pool summary
+printf 'summary\n' | ckpmsg -s /tmp -n ckpool -N pool
 ```
 
 ### 9. Shutdown Pool
 
 Gracefully shutdown the pool:
 ```bash
-ckpmsg -s /tmp/ckpool/pool shutdown
+printf 'shutdown\n' | ckpmsg -s /tmp -n ckpool -N pool
 ```
 
 ## Practical Examples
@@ -128,7 +169,7 @@ Create a monitoring script:
 while true; do
     clear
     echo "=== CKPool Stats ==="
-    ckpmsg -s /tmp/ckpool/stratifier stats | jq '.'
+    ckpmsg_json stats stratifier | jq '.'
     sleep 5
 done
 ```
@@ -137,21 +178,21 @@ done
 
 Extract specific user's hashrate:
 ```bash
-ckpmsg -s /tmp/ckpool/stratifier user.info=skaisser | jq '.hashrate1m'
+ckpmsg_json user.info=skaisser stratifier | jq '.hashrate1m'
 ```
 
 ### List Active Workers
 
 Show all active workers with hashrate:
 ```bash
-ckpmsg -s /tmp/ckpool/stratifier workers | jq '.workers[] | {user: .user, worker: .worker, hashrate: .hashrate1m}'
+ckpmsg_json workers stratifier | jq '.workers[] | {user: .user, worker: .worker, hashrate: .hashrate1m}'
 ```
 
 ### Export Stats to JSON File
 
 Save pool statistics:
 ```bash
-ckpmsg -s /tmp/ckpool/stratifier stats > pool_stats_$(date +%Y%m%d_%H%M%S).json
+printf 'stats\n' | ckpmsg -s /tmp -n ckpool -N stratifier > pool_stats_$(date +%Y%m%d_%H%M%S).json
 ```
 
 ## Creating a Web API Wrapper
@@ -167,13 +208,13 @@ while true; do
     echo -e "HTTP/1.1 200 OK\nContent-Type: application/json\n"
     case "$REQUEST" in
         *"/stats"*)
-            ckpmsg -s /tmp/ckpool/stratifier stats
+            printf 'stats\n' | ckpmsg -s /tmp -n ckpool -N stratifier
             ;;
         *"/users"*)
-            ckpmsg -s /tmp/ckpool/stratifier users
+            printf 'users\n' | ckpmsg -s /tmp -n ckpool -N stratifier
             ;;
         *"/workers"*)
-            ckpmsg -s /tmp/ckpool/stratifier workers
+            printf 'workers\n' | ckpmsg -s /tmp -n ckpool -N stratifier
             ;;
         *)
             echo '{"error":"Unknown endpoint"}'
@@ -191,8 +232,10 @@ import json
 
 def ckpool_command(socket, command):
     """Execute ckpmsg command and return parsed JSON"""
-    cmd = ['ckpmsg', '-s', f'/tmp/ckpool/{socket}', command]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    cmd = ['ckpmsg', '-s', '/tmp', '-n', 'ckpool', '-N', socket]
+    # ckpmsg reads the command from stdin -- passing it in argv is ignored.
+    result = subprocess.run(cmd, input=command + '\n',
+                            capture_output=True, text=True)
     if result.returncode == 0:
         return json.loads(result.stdout)
     return None
@@ -229,7 +272,7 @@ tail -f ~/ckpool/logs/ckpool.log
 ### Invalid JSON Response
 Some commands may return text instead of JSON. Parse accordingly:
 ```bash
-ckpmsg -s /tmp/ckpool/stratifier loglevel=7 2>&1
+printf 'loglevel=7\n' | ckpmsg -s /tmp -n ckpool -N stratifier 2>&1
 ```
 
 ## Advanced Usage
@@ -237,7 +280,7 @@ ckpmsg -s /tmp/ckpool/stratifier loglevel=7 2>&1
 ### Custom Queries
 You can send custom JSON-RPC style queries:
 ```bash
-echo '{"method":"stats","params":[]}' | ckpmsg -s /tmp/ckpool/stratifier -
+echo '{"method":"stats","params":[]}' | printf '-\n' | ckpmsg -s /tmp -n ckpool -N stratifier
 ```
 
 ### Monitoring Script
@@ -250,7 +293,7 @@ echo "CKPool Monitor - $(date)"
 echo "===================="
 
 echo -e "\n📊 Pool Stats:"
-ckpmsg -s /tmp/ckpool/stratifier stats | jq '{
+ckpmsg_json stats stratifier | jq '{
     hashrate: .hashrate1m,
     workers: .workers,
     users: .users,
@@ -259,7 +302,7 @@ ckpmsg -s /tmp/ckpool/stratifier stats | jq '{
 }'
 
 echo -e "\n👥 Top Users by Hashrate:"
-ckpmsg -s /tmp/ckpool/stratifier users | jq -r '.users | 
+ckpmsg_json users stratifier | jq -r '.users | 
     sort_by(-.hashrate1m) | 
     .[0:5] | 
     .[] | 

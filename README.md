@@ -649,13 +649,13 @@ Miners can opt-in to solo mode by using their **own BCH address as username**:
 
 ```bash
 # Pool statistics
-./ckpmsg -s /tmp/ckpool/stratifier stats
+printf 'stats\n' | ./ckpmsg -s /tmp -n ckpool -N stratifier
 
 # User information
-./ckpmsg -s /tmp/ckpool/stratifier users
+printf 'users\n' | ./ckpmsg -s /tmp -n ckpool -N stratifier
 
 # Worker details
-./ckpmsg -s /tmp/ckpool/stratifier workers
+printf 'workers\n' | ./ckpmsg -s /tmp -n ckpool -N stratifier
 
 # View logs (systemd)
 sudo journalctl -u ckpool -f --lines=100
@@ -766,16 +766,16 @@ CKPool uses Unix sockets for administration. For read-only HTTP access suitable 
 
 ```bash
 # Pool statistics
-./ckpmsg -s /tmp/ckpool/stratifier stats
+printf 'stats\n' | ./ckpmsg -s /tmp -n ckpool -N stratifier
 
 # User information
-./ckpmsg -s /tmp/ckpool/stratifier users
+printf 'users\n' | ./ckpmsg -s /tmp -n ckpool -N stratifier
 
 # Worker details
-./ckpmsg -s /tmp/ckpool/stratifier workers
+printf 'workers\n' | ./ckpmsg -s /tmp -n ckpool -N stratifier
 
 # Change log level
-./ckpmsg -s /tmp/ckpool/pool loglevel=debug
+printf 'loglevel=debug\n' | ./ckpmsg -s /tmp -n ckpool -N pool
 ```
 
 ## 🏗️ Architecture
