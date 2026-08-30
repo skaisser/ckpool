@@ -37,7 +37,12 @@ jobs:
   gate:
     name: Build, unit tests, regtest money gate
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The e2e mining ceiling now scales with core count (issue #24): on a
+    # 4-core GitHub runner that is ~11 min per block-finding scenario, and
+    # there are five of them. The loop exits the moment a block lands, so a
+    # healthy run still finishes in a few minutes -- but the cap has to cover
+    # the slow case, or a runner that would have passed gets killed instead.
+    timeout-minutes: 75
 
     steps:
       - name: Check out the tagged commit
