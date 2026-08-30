@@ -48,6 +48,17 @@ CKPOOL_BIN="$REPO_ROOT/src/ckpool"
 CKPMSG_BIN="$REPO_ROOT/src/ckpmsg"
 MINERD_BIN="$SCRIPT_DIR/minerd"
 
+# Block-finding ceiling for mine_block_as(). Regtest difficulty is 1.0, so this
+# is purely a question of CPU hash rate, and the old fixed 90s made the gate
+# flaky on CI-grade hardware: a 36-core box scored 31/35 while a 4-core GitHub
+# runner scored 13/20 on the SAME commit -- scenarios timing out, not failing
+# (issue #24). The poll loop breaks the moment the height increases, so a
+# generous ceiling costs fast hardware nothing and only buys slow hardware the
+# time it needs. Scales with core count: ~2 min on 36 cores, ~11 min on 4.
+# Override with E2E_MINE_TIMEOUT to pin it explicitly.
+E2E_CORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+E2E_MINE_TIMEOUT="${E2E_MINE_TIMEOUT:-$(( 60 + 2400 / E2E_CORES ))}"
+
 RPC_PORT=18543
 P2P_PORT=18544
 # NOTE: ckpool treats EVERY stratum port above 4000 as a "highdiff" port
@@ -133,14 +144,21 @@ trap cleanup EXIT
 wait_for_tcp() {
 	local host="$1" port="$2" timeout="${3:-60}" waited=0
 	while ! (exec 3<>"/dev/tcp/$host/$port") 2>/dev/null; do
-		exec 3<&- 2>/dev/null || true
+		# `exec fd<&-` with NO command makes its redirections PERMANENT for the
+		# shell. The old form here was `exec 3<&- 2>/dev/null`, which did not
+		# just silence this line -- it pointed the whole script's stderr at
+		# /dev/null for the rest of the run, from the first moment ckpool
+		# starts. Every log, warn, cleanup message and abort reason after that
+		# was silently discarded, which is why a failing run gave no clue why.
+		# Braces scope the redirection to the group instead.
+		{ exec 3<&-; } 2>/dev/null || true
 		waited=$((waited + 1))
 		if [[ $waited -ge $timeout ]]; then
 			return 1
 		fi
 		sleep 1
 	done
-	exec 3<&- 3>&- 2>/dev/null || true
+	{ exec 3<&- 3>&-; } 2>/dev/null || true
 	return 0
 }
 
@@ -360,8 +378,35 @@ stop_miner() {
 }
 
 # mine_block_as USERNAME -> echoes the new block hash, or empty string on timeout
+# ckpmsg_json COMMAND -- ask the stratifier for COMMAND and return only the JSON.
+#
+# Three separate traps live in this one call, and every one of them fails
+# quietly rather than loudly (issue #22):
+#   1. The command is read from STDIN, not argv (src/ckpmsg.c:121). A trailing
+#      `ckpmsg ... users` is ignored and you get empty output with rc 0.
+#   2. The socket path is assembled as <-s>/<-n>/<-N> (src/ckpmsg.c:252-262).
+#      `-s` is a PARENT directory. ckpool here runs with -s "$SOCKDIR", so its
+#      sockets sit directly in SOCKDIR and `-n .` keeps the assembled path
+#      pointing at them without splitting SOCKDIR into parent and basename.
+#   3. ckpmsg logs to STDOUT, not stderr, and the payload arrives inside a
+#      "Received response: " log line. Capturing raw stdout hands jq three
+#      lines of chatter and it exits 5 on the parse error -- which is exactly
+#      what aborted this suite under `set -e` before scenario 6 could report.
+ckpmsg_json() {
+	local cmd="$1" out
+	# ckpmsg prints through LOGMSGSIZ, which emits at most 510 chars per line,
+	# so a response of any size arrives split across several lines. Take
+	# everything from the marker to EOF and rejoin it.
+	out=$(printf '%s\n' "$cmd" | "$CKPMSG_BIN" -s "$SOCKDIR" -n . -N stratifier 2>/dev/null \
+		| sed -n '/Received response: /,$p' \
+		| sed '1s/^.*Received response: //' | tr -d '\n') || true
+	# A missing socket or an empty reply must still yield parseable JSON so the
+	# assertions below fail as assertions, not as a shell abort.
+	[[ -n "$out" ]] && printf '%s' "$out" || printf '{}'
+}
+
 mine_block_as() {
-	local user="$1" timeout="${2:-90}"
+	local user="$1" timeout="${2:-$E2E_MINE_TIMEOUT}"
 	local start_height pid waited=0 height hash=""
 
 	start_height=$(bch_cli getblockcount)
@@ -552,19 +597,26 @@ scenario_6_uppercase_same_user() {
 	log "=== Scenario 6: UPPERCASE bare cashaddr ($ADDR6_UPPER) normalizes to scenario 2's user ==="
 	local pid; pid=$(run_miner "$ADDR6_UPPER")
 	sleep 5
-	stop_miner "$pid"
 
+	# Query while the miner is still CONNECTED. userinfo()'s "workers" is a
+	# count of live connections, not a cumulative total: the previous version
+	# stopped the miner first and then asserted >= 2 ("scenario2's connection
+	# plus this one"), which could never hold -- scenario 2's client
+	# disconnected long ago and this one had just been killed, so the row
+	# always read 0. The identity assertion below is what actually proves the
+	# uppercase form normalized onto the same user.
 	local users_json
-	users_json=$("$CKPMSG_BIN" -s "${SOCKDIR}stratifier" users 2>/dev/null || echo '{}')
+	users_json=$(ckpmsg_json users)
 	local row workers_count
 	row=$(printf '%s' "$users_json" | jq -c --arg u "$ADDR2_BARE" '.users[]? | select(.user == $u)')
 	workers_count=$(printf '%s' "$row" | jq -r '.workers // 0')
+	stop_miner "$pid"
 
 	log "scenario6: ckpmsg users row for $ADDR2_BARE: ${row:-<none>}"
 	check "scenario6: exactly one user row exists for the lowercase address (no duplicate uppercase user)" \
 		"$([[ -n "$row" ]] && echo true || echo false)"
-	check "scenario6: that user row has 2 workers (scenario2's connection + this uppercase one)" \
-		"$([[ "$workers_count" -ge 2 ]] && echo true || echo false)"
+	check "scenario6: the UPPERCASE connection is counted under that same user (observed workers: ${workers_count:-0})" \
+		"$([[ "${workers_count:-0}" -ge 1 ]] && echo true || echo false)"
 }
 
 scenario_7_multi_worker() {
@@ -577,7 +629,7 @@ scenario_7_multi_worker() {
 	stop_miner "$pid2"
 
 	local workers_json w1_present w2_present
-	workers_json=$("$CKPMSG_BIN" -s "${SOCKDIR}stratifier" workers 2>/dev/null || echo '{}')
+	workers_json=$(ckpmsg_json workers)
 	log "scenario7: ckpmsg workers for $ADDR1: $(printf '%s' "$workers_json" | jq -c --arg u "$ADDR1" '[.workers[]? | select(.user == $u)]')"
 
 	w1_present=$(printf '%s' "$workers_json" | jq -e --arg w "${ADDR1}.w1" '.workers[]? | select(.worker == $w)' >/dev/null 2>&1 && echo true || echo false)
