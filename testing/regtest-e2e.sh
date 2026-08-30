@@ -57,7 +57,13 @@ MINERD_BIN="$SCRIPT_DIR/minerd"
 # time it needs. Scales with core count: ~2 min on 36 cores, ~11 min on 4.
 # Override with E2E_MINE_TIMEOUT to pin it explicitly.
 E2E_CORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-E2E_MINE_TIMEOUT="${E2E_MINE_TIMEOUT:-$(( 60 + 2400 / E2E_CORES ))}"
+E2E_MINE_TIMEOUT_SCALED=$(( 60 + 2400 / E2E_CORES ))
+# Floor it. Scaling by core count alone gives the FASTEST machine the TIGHTEST
+# ceiling, which is backwards: the poll loop breaks the instant a block lands,
+# so a generous ceiling costs a fast box nothing and a tight one just invites
+# flakes when that box happens to be busy -- a loaded 36-core host timed out at
+# the 126s its core count implied. Generous everywhere, more generous when slow.
+E2E_MINE_TIMEOUT="${E2E_MINE_TIMEOUT:-$(( E2E_MINE_TIMEOUT_SCALED > 300 ? E2E_MINE_TIMEOUT_SCALED : 300 ))}"
 
 RPC_PORT=18543
 P2P_PORT=18544
