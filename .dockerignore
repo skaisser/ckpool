@@ -1,0 +1,22 @@
+.git
+.github
+Dockerfile
+.dockerignore
+# build output from a local ./configure && make
+**/*.o
+**/*.a
+**/*.la
+**/*.lo
+**/.deps
+**/.libs
+autom4te.cache
+config.log
+config.status
+config.h
+stamp-h1
+libtool
+src/ckpool
+src/ckpmsg
+src/notifier
+test/*.log
+test/*.trs
